@@ -1,8 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Panel, Loader, Message, Button, Progress, Stack, Radio, Modal, SelectPicker } from 'rsuite';
-import 'rsuite/dist/rsuite.min.css';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title
+} from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
+import './QuizResults.css';
+
+ChartJS.register(
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title
+);
 
 interface Question {
   question_id: number;
@@ -34,6 +55,7 @@ const QuizResults: React.FC = () => {
   const [showRegenerateModal, setShowRegenerateModal] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('moderate');
+  const [activeTab, setActiveTab] = useState<'summary' | 'details'>('summary');
 
   const difficultyOptions = [
     { label: 'Easy', value: 'easy' },
@@ -126,34 +148,6 @@ const QuizResults: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Loader size="md" content="Loading results..." />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <Message type="error" header="Error">
-          {error}
-        </Message>
-      </div>
-    );
-  }
-
-  if (!result) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <Message type="warning" header="Notice">
-          No results found
-        </Message>
-      </div>
-    );
-  }
-
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -168,164 +162,250 @@ const QuizResults: React.FC = () => {
     }
   };
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <Panel shaded>
-        <Stack justifyContent="space-between" alignItems="center" style={{ marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>Quiz Results</h2>
-          <div style={{ fontSize: '16px', color: '#666' }}>
-            Submitted on {new Date(result.submitted_at).toLocaleString()}
-          </div>
-        </Stack>
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return '#48bb78';
+    if (score >= 50) return '#4299e1';
+    return '#e53e3e';
+  };
 
-        <Stack spacing={20} style={{ marginBottom: '30px' }}>
-          <Panel bordered style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '10px' }}>Score</h3>
-            <Progress.Line 
-              percent={result.score} 
-              status={result.score >= 70 ? 'success' : result.score >= 50 ? 'active' : 'fail'}
-              strokeWidth={10}
-            />
-            <div style={{ marginTop: '10px', textAlign: 'center' }}>
-              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{result.score.toFixed(1)}%</span>
-              <div style={{ color: '#666' }}>
-                {result.correct_answers} out of {result.total_questions} correct
+  const getScoreEmoji = (score: number) => {
+    if (score >= 70) return '🎉';
+    if (score >= 50) return '👍';
+    return '💪';
+  };
+
+  const getScoreMessage = (score: number) => {
+    if (score >= 70) return 'Great job!';
+    if (score >= 50) return 'Good effort!';
+    return 'Keep practicing!';
+  };
+
+  if (loading) {
+    return (
+      <div className="results-container">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+          <p>Loading results...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="results-container">
+        <div className="error-message">
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={handleBackToQuizzes}>Return to Quizzes</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) {
+    return null;
+  }
+
+  const scoreColor = getScoreColor(result.score);
+  const scoreEmoji = getScoreEmoji(result.score);
+  const scoreMessage = getScoreMessage(result.score);
+
+  const pieData = {
+    labels: ['Correct', 'Incorrect'],
+    datasets: [
+      {
+        data: [result.correct_answers, result.total_questions - result.correct_answers],
+        backgroundColor: ['#48bb78', '#e53e3e'],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  const timeData = {
+    labels: result.questions.map((_, index) => `Q${index + 1}`),
+    datasets: [
+      {
+        label: 'Time Spent (seconds)',
+        data: result.questions.map(q => q.time_spent),
+        backgroundColor: '#4299e1',
+      },
+    ],
+  };
+
+  return (
+    <div className="results-container">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="results-header"
+      >
+        <h1>Quiz Results</h1>
+        <div className="submission-time">
+          Submitted on {new Date(result.submitted_at).toLocaleString()}
+        </div>
+      </motion.div>
+
+      <div className="results-tabs">
+        <button
+          className={`tab-button ${activeTab === 'summary' ? 'active' : ''}`}
+          onClick={() => setActiveTab('summary')}
+        >
+          Summary
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'details' ? 'active' : ''}`}
+          onClick={() => setActiveTab('details')}
+        >
+          Question Details
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'summary' ? (
+          <motion.div
+            key="summary"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="summary-tab"
+          >
+            <div className="score-section">
+              <div className="score-circle" style={{ borderColor: scoreColor }}>
+                <div className="score-value" style={{ color: scoreColor }}>
+                  {result.score.toFixed(1)}%
+                </div>
+                <div className="score-emoji">{scoreEmoji}</div>
+                <div className="score-message">{scoreMessage}</div>
               </div>
             </div>
-          </Panel>
 
-          <Panel bordered style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '10px' }}>Time Taken</h3>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTime(result.time_taken)}</span>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h3>Performance</h3>
+                <div className="chart-container">
+                  <Pie data={pieData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <h3>Time Distribution</h3>
+                <div className="chart-container">
+                  <Bar
+                    data={timeData}
+                    options={{
+                      plugins: {
+                        legend: { display: false },
+                        title: { display: false }
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          title: {
+                            display: true,
+                            text: 'Seconds'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             </div>
-          </Panel>
-        </Stack>
 
-        <div style={{ marginBottom: '30px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Question Analysis</h3>
-          <Stack direction="column" spacing={15}>
+            <div className="action-buttons">
+              <button className="action-button retake" onClick={handleRetakeQuiz}>
+                Retake Quiz
+              </button>
+              <button className="action-button regenerate" onClick={() => setShowRegenerateModal(true)}>
+                Generate New Quiz
+              </button>
+              <button className="action-button back" onClick={handleBackToQuizzes}>
+                Back to Quizzes
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="details"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="details-tab"
+          >
             {result.questions.map((question, index) => (
-              <Panel 
+              <motion.div
                 key={question.question_id}
-                bordered
-                style={{
-                  backgroundColor: question.is_correct ? '#f0f9ff' : '#fff1f0',
-                  borderColor: question.is_correct ? '#91caff' : '#ffccc7'
-                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="question-card"
               >
-                <Stack justifyContent="space-between" alignItems="flex-start">
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '16px', marginBottom: '10px' }}>
-                      Question {index + 1}: {question.question_text}
-                    </h4>
-                    <Stack direction="column" spacing={10}>
-                      {question.options.map((option, optionIndex) => (
-                        <div
-                          key={optionIndex}
-                          style={{
-                            padding: '10px',
-                            borderRadius: '6px',
-                            backgroundColor: option === question.correct_answer
-                              ? '#f6ffed'
-                              : option === question.student_answer && option !== question.correct_answer
-                              ? '#fff2f0'
-                              : '#f5f5f5',
-                            border: '1px solid',
-                            borderColor: option === question.correct_answer
-                              ? '#b7eb8f'
-                              : option === question.student_answer && option !== question.correct_answer
-                              ? '#ffccc7'
-                              : '#d9d9d9'
-                          }}
-                        >
-                          <Stack spacing={10}>
-                            {option === question.correct_answer && (
-                              <span style={{ color: '#52c41a', fontWeight: 'bold' }}>✓</span>
-                            )}
-                            {option === question.student_answer && option !== question.correct_answer && (
-                              <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>✗</span>
-                            )}
-                            <span>{option}</span>
-                          </Stack>
-                        </div>
-                      ))}
-                    </Stack>
-                    <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
-                      Time spent: {formatTime(question.time_spent)}
-                    </div>
+                <div className="question-header">
+                  <span className="question-number">Question {index + 1}</span>
+                  <span className={`question-status ${question.is_correct ? 'correct' : 'incorrect'}`}>
+                    {question.is_correct ? '✓ Correct' : '✗ Incorrect'}
+                  </span>
+                </div>
+                <p className="question-text">{question.question_text}</p>
+                <div className="answer-details">
+                  <div className="answer-row">
+                    <span className="answer-label">Your Answer:</span>
+                    <span className={`answer-value ${question.is_correct ? 'correct' : 'incorrect'}`}>
+                      {question.student_answer}
+                    </span>
                   </div>
-                </Stack>
-              </Panel>
+                  {!question.is_correct && (
+                    <div className="answer-row">
+                      <span className="answer-label">Correct Answer:</span>
+                      <span className="answer-value correct">{question.correct_answer}</span>
+                    </div>
+                  )}
+                  <div className="answer-row">
+                    <span className="answer-label">Time Spent:</span>
+                    <span className="answer-value">{formatTime(question.time_spent)}</span>
+                  </div>
+                </div>
+              </motion.div>
             ))}
-          </Stack>
-        </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        <Stack justifyContent="space-between">
-          <Button
-            appearance="default"
-            onClick={handleBackToQuizzes}
+      {showRegenerateModal && (
+        <div className="modal-overlay">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="modal-content"
           >
-            Back to Quizzes
-          </Button>
-          <Stack spacing={10}>
-            <Button
-              appearance="primary"
-              color="blue"
-              onClick={() => setShowRegenerateModal(true)}
+            <h3>Generate New Quiz</h3>
+            <p>Select the difficulty level for the new quiz:</p>
+            <select
+              value={selectedDifficulty}
+              onChange={(e) => setSelectedDifficulty(e.target.value)}
+              className="difficulty-select"
             >
-              Regenerate Quiz
-            </Button>
-            <Button
-              appearance="primary"
-              color="green"
-              onClick={handleRetakeQuiz}
-            >
-              Retake Quiz
-            </Button>
-          </Stack>
-        </Stack>
-      </Panel>
-
-      <Modal
-        backdrop="static"
-        keyboard={false}
-        size="sm"
-        onClose={() => setShowRegenerateModal(false)}
-        open={showRegenerateModal}
-      >
-        <Modal.Header>
-          <Modal.Title>Regenerate Quiz</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Stack direction="column" spacing={20}>
-            <div>
-              <p>Select a new difficulty level for the quiz:</p>
-              <SelectPicker
-                data={difficultyOptions}
-                value={selectedDifficulty}
-                onChange={(value: string | null) => setSelectedDifficulty(value || 'moderate')}
-                style={{ width: '100%' }}
-              />
+              {difficultyOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="modal-buttons">
+              <button onClick={() => setShowRegenerateModal(false)}>Cancel</button>
+              <button
+                onClick={handleRegenerateQuiz}
+                disabled={regenerating}
+                className="confirm-button"
+              >
+                {regenerating ? 'Generating...' : 'Generate'}
+              </button>
             </div>
-          </Stack>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            appearance="default"
-            onClick={() => setShowRegenerateModal(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            appearance="primary"
-            onClick={handleRegenerateQuiz}
-            loading={regenerating}
-          >
-            Regenerate
-          </Button>
-        </Modal.Footer>
-      </Modal>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
