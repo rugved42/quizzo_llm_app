@@ -1,114 +1,102 @@
 import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Navbar as RSNavbar, Nav, Button, Dropdown, Avatar } from 'rsuite';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Navbar, Nav, Button, Dropdown, Avatar } from 'rsuite';
 import './Navbar.css';
 
-const Navbar: React.FC = () => {
+const NavbarComponent: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { logout, userName } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login');
   };
 
-  const getUserInitials = (name: string | null) => {
-    if (!name) return '?';
+  const getUserInitials = (name: string) => {
     return name
       .split(' ')
       .map(word => word[0])
       .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
+      .toUpperCase();
   };
 
   return (
-    <RSNavbar className="navbar">
-      <div className="navbar-container">
-        <div className="navbar-left">
-          <RSNavbar.Brand as={Link} to="/dashboard" className="navbar-brand">
-            <span className="brand-icon">🎯</span>
-            <span className="brand-text">Quizzo</span>
-          </RSNavbar.Brand>
-        </div>
-
-        <div className="navbar-center">
-          <Nav className="nav-links">
+    <Navbar className="navbar">
+      <Navbar.Brand className="brand">
+        <span className="nav-icon">📚</span>
+        Quizzo
+      </Navbar.Brand>
+      <Nav className="nav-links">
+        {isAuthenticated ? (
+          <>
             <Nav.Item 
-              as={Link} 
-              to="/dashboard"
-              className={isActive('/dashboard') ? 'active' : ''}
+              icon={<span className="nav-icon">📊</span>}
+              onSelect={() => navigate('/dashboard')}
             >
-              <span className="nav-icon">📊</span>
               Dashboard
             </Nav.Item>
             <Nav.Item 
-              as={Link} 
-              to="/quizzes"
-              className={isActive('/quizzes') ? 'active' : ''}
+              icon={<span className="nav-icon">📝</span>}
+              onSelect={() => navigate('/quizzes')}
             >
-              <span className="nav-icon">📝</span>
               Quizzes
             </Nav.Item>
             <Nav.Item 
-              as={Link} 
-              to="/upload"
-              className={isActive('/upload') ? 'active' : ''}
+              icon={<span className="nav-icon">📤</span>}
+              onSelect={() => navigate('/upload')}
             >
-              <span className="nav-icon">📤</span>
               Upload
             </Nav.Item>
             <Nav.Item 
-              as={Link} 
-              to="/live-quizzes"
-              className={isActive('/live-quizzes') ? 'active' : ''}
+              icon={<span className="nav-icon">👥</span>}
+              onSelect={() => navigate('/live-quizzes')}
             >
-              <span className="nav-icon">👥</span>
               Live Quizzes
             </Nav.Item>
-          </Nav>
-        </div>
-
-        <div className="navbar-right">
+          </>
+        ) : (
+          <Nav.Item onSelect={() => navigate('/login')}>Login</Nav.Item>
+        )}
+      </Nav>
+      <Nav pullRight>
+        {isAuthenticated && user && (
           <Dropdown
             renderToggle={(props, ref) => (
-              <Button {...props} ref={ref} appearance="subtle" className="user-button">
-                <Avatar circle size="sm" className="user-avatar">
-                  {getUserInitials(userName)}
+              <Button {...props} ref={ref} className="user-button">
+                <Avatar circle className="user-avatar">
+                  {getUserInitials(user.name)}
                 </Avatar>
-                <div className="user-info">
-                  <span className="user-name">{userName || 'User'}</span>
-                  <span className="user-role">Student</span>
-                </div>
+                <span className="user-name">{user.name}</span>
                 <span className="dropdown-icon">▼</span>
               </Button>
             )}
             placement="bottomEnd"
           >
-            <Dropdown.Item>
+            <Dropdown.Item className="dropdown-item">
               <span className="dropdown-item-icon">👤</span>
-              Profile
+              <div className="dropdown-item-content">
+                <div className="dropdown-item-title">Profile</div>
+                <div className="dropdown-item-subtitle">{user.email}</div>
+              </div>
             </Dropdown.Item>
-            <Dropdown.Item>
+            <Dropdown.Item className="dropdown-item">
               <span className="dropdown-item-icon">⚙️</span>
-              Settings
+              <div className="dropdown-item-content">
+                <div className="dropdown-item-title">Settings</div>
+              </div>
             </Dropdown.Item>
-            <Dropdown.Item divider />
-            <Dropdown.Item onSelect={handleLogout}>
+            <Dropdown.Item className="dropdown-item" onSelect={handleLogout}>
               <span className="dropdown-item-icon">🚪</span>
-              Logout
+              <div className="dropdown-item-content">
+                <div className="dropdown-item-title">Logout</div>
+              </div>
             </Dropdown.Item>
           </Dropdown>
-        </div>
-      </div>
-    </RSNavbar>
+        )}
+      </Nav>
+    </Navbar>
   );
 };
 
-export default Navbar; 
+export default NavbarComponent; 

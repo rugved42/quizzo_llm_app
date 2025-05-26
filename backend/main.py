@@ -1726,14 +1726,18 @@ def get_dashboard_stats():
         # Get the current user from JWT token
         current_user = get_jwt_identity()
         
-        # Get total number of books
-        total_books = Textbook.query.count()
+        # Get total number of books for this student
+        total_books = Textbook.query.filter_by(student_id=current_user).count()
         
-        # Get total number of questions across all quizzes
-        total_questions = Question.query.count()
+        # Get total number of questions from this student's textbooks
+        total_questions = Question.query.join(Chapter).join(Textbook).filter(
+            Textbook.student_id == current_user
+        ).count()
         
-        # Get unique topics covered (based on textbook titles)
-        topics = db.session.query(Textbook.title).distinct().all()
+        # Get unique topics covered by this student's textbooks
+        topics = db.session.query(Textbook.title).filter(
+            Textbook.student_id == current_user
+        ).distinct().all()
         topics_covered = len(topics)
         topics_list = [topic[0] for topic in topics]  # Extract titles from query results
         

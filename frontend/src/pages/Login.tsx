@@ -37,7 +37,7 @@ const Login: React.FC = () => {
         throw new Error(data.error || 'Login failed');
       }
 
-      login(data.access_token, data.student_id, data.name);
+      login(data.access_token, data.student_id, data.name, data.email);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error('Login error:', err);
