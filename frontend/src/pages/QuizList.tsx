@@ -179,7 +179,7 @@ const QuizList: React.FC = () => {
           >
             <option value="all">All Difficulties</option>
             <option value="easy">Easy</option>
-            <option value="moderate">Moderate</option>
+            <option value="medium">Medium</option>
             <option value="hard">Hard</option>
           </select>
           <select

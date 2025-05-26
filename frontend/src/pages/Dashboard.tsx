@@ -34,12 +34,23 @@ interface Textbook {
   quizzes: TextbookQuiz[];
 }
 
+interface DashboardStats {
+  total_books: number;
+  total_questions: number;
+  topics_covered: number;
+}
+
 const Dashboard: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'quizzes' | 'activity'>('quizzes');
+  const [stats, setStats] = useState<DashboardStats>({
+    total_books: 0,
+    total_questions: 0,
+    topics_covered: 0
+  });
 
   const fetchDashboardData = async () => {
     try {
@@ -54,7 +65,7 @@ const Dashboard: React.FC = () => {
 
       setLoading(true);
 
-      const [quizzesResponse, activityResponse] = await Promise.all([
+      const [quizzesResponse, activityResponse, statsResponse] = await Promise.all([
         axios.get('http://localhost:8001/api/quizzes', {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -63,6 +74,13 @@ const Dashboard: React.FC = () => {
           withCredentials: true
         }),
         axios.get(`http://localhost:8001/api/students/${studentId}/recent-activity`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
+        }),
+        axios.get('http://localhost:8001/api/dashboard/stats', {
           headers: { 
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -94,12 +112,16 @@ const Dashboard: React.FC = () => {
         console.log('Setting Recent Activity:', activityResponse.data);
         setRecentActivity(activityResponse.data);
       }
+
+      if (statsResponse.data) {
+        setStats(statsResponse.data);
+      }
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
       if (err.response?.status === 403) {
         setError('Not authorized to access this data');
       } else if (err.response?.status === 404) {
-        setError('Recent activity data not found');
+        setError('Data not found');
       } else {
         setError('Failed to load dashboard data');
       }
@@ -134,6 +156,48 @@ const Dashboard: React.FC = () => {
       y: 0,
       transition: {
         duration: 0.5
+      }
+    }
+  };
+
+  const statsVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.5,
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const statCardVariants = {
+    hidden: { opacity: 0, scale: 0.8 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      transition: {
+        duration: 0.5,
+        ease: "easeOut"
+      }
+    },
+    hover: {
+      scale: 1.05,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
+
+  const numberVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.5,
+        ease: "easeOut"
       }
     }
   };
@@ -259,6 +323,91 @@ const Dashboard: React.FC = () => {
       <motion.div className="dashboard-header" variants={itemVariants}>
         <h1>Welcome back, {localStorage.getItem('userName')}!</h1>
         <p>Ready to test your knowledge?</p>
+      </motion.div>
+
+      <motion.div 
+        className="dashboard-stats"
+        variants={statsVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div 
+          className="stat-card"
+          variants={statCardVariants}
+          whileHover="hover"
+        >
+          <motion.div 
+            className="stat-icon"
+            initial={{ rotate: -10 }}
+            animate={{ rotate: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            📚
+          </motion.div>
+          <div className="stat-content">
+            <h3>Books Added</h3>
+            <motion.p 
+              className="stat-number"
+              variants={numberVariants}
+              key={stats.total_books}
+            >
+              {stats.total_books}
+            </motion.p>
+            <p className="stat-description">Textbooks uploaded for quiz generation</p>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          className="stat-card"
+          variants={statCardVariants}
+          whileHover="hover"
+        >
+          <motion.div 
+            className="stat-icon"
+            initial={{ rotate: -10 }}
+            animate={{ rotate: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            ❓
+          </motion.div>
+          <div className="stat-content">
+            <h3>Questions Generated</h3>
+            <motion.p 
+              className="stat-number"
+              variants={numberVariants}
+              key={stats.total_questions}
+            >
+              {stats.total_questions}
+            </motion.p>
+            <p className="stat-description">AI-generated questions from your textbooks</p>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          className="stat-card"
+          variants={statCardVariants}
+          whileHover="hover"
+        >
+          <motion.div 
+            className="stat-icon"
+            initial={{ rotate: -10 }}
+            animate={{ rotate: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            🎯
+          </motion.div>
+          <div className="stat-content">
+            <h3>Topics Covered</h3>
+            <motion.p 
+              className="stat-number"
+              variants={numberVariants}
+              key={stats.topics_covered}
+            >
+              {stats.topics_covered}
+            </motion.p>
+            <p className="stat-description">Different subjects and topics in your quizzes</p>
+          </div>
+        </motion.div>
       </motion.div>
 
       <motion.div className="dashboard-tabs" variants={itemVariants}>

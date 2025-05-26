@@ -1716,6 +1716,75 @@ def get_recent_activity(student_id):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response, 500
 
+@app.route('/api/dashboard/stats', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def get_dashboard_stats():
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    try:
+        # Get the current user from JWT token
+        current_user = get_jwt_identity()
+        
+        # Get total number of books
+        total_books = Textbook.query.count()
+        
+        # Get total number of questions across all quizzes
+        total_questions = Question.query.count()
+        
+        # Get unique topics covered (based on textbook titles)
+        topics = db.session.query(Textbook.title).distinct().all()
+        topics_covered = len(topics)
+        topics_list = [topic[0] for topic in topics]  # Extract titles from query results
+        
+        return jsonify({
+            'total_books': total_books,
+            'total_questions': total_questions,
+            'topics_covered': topics_covered,
+            'topics': topics_list
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in get_dashboard_stats: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/topics', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def get_topics():
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    try:
+        # Get the current user from JWT token
+        current_user = get_jwt_identity()
+        
+        # Get all unique topics with their book counts
+        topics = db.session.query(
+            Textbook.title,
+            db.func.count(Textbook.id).label('book_count')
+        ).group_by(Textbook.title).all()
+        
+        # Format the response
+        topics_list = [{
+            'name': topic[0],
+            'book_count': topic[1]
+        } for topic in topics]
+        
+        return jsonify({
+            'topics': topics_list,
+            'total_topics': len(topics_list)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in get_topics: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
 # Add cleanup on startup
 with app.app_context():
     try:

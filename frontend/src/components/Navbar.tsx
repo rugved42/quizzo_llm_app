@@ -1,84 +1,113 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Navbar as RSNavbar, Nav, Button, Dropdown, Avatar } from 'rsuite';
+import { useAuth } from '../contexts/AuthContext';
 import './Navbar.css';
 
-interface NavbarProps {
-  onLogout: () => void;
-}
-
-const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
+const Navbar: React.FC = () => {
   const navigate = useNavigate();
-  const userName = localStorage.getItem('userName');
+  const location = useLocation();
+  const { logout, userName } = useAuth();
 
   const handleLogout = () => {
-    onLogout();
+    logout();
     navigate('/');
   };
 
-  return (
-    <motion.nav 
-      className="navbar"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ type: "spring", stiffness: 100 }}
-    >
-      <div className="navbar-container">
-        <Link to="/dashboard" className="navbar-brand">
-          <motion.span 
-            className="brand-text"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Quizzo
-          </motion.span>
-        </Link>
+  const getUserInitials = (name: string | null) => {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
-        <div className="navbar-links">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/dashboard" className="nav-link">Dashboard</Link>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/quizzes" className="nav-link">Quizzes</Link>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/live-quizzes" className="nav-link">Live Quizzes</Link>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/upload" className="nav-link">Upload</Link>
-          </motion.div>
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
+  return (
+    <RSNavbar className="navbar">
+      <div className="navbar-container">
+        <div className="navbar-left">
+          <RSNavbar.Brand as={Link} to="/dashboard" className="navbar-brand">
+            <span className="brand-icon">🎯</span>
+            <span className="brand-text">Quizzo</span>
+          </RSNavbar.Brand>
         </div>
 
-        <div className="navbar-user">
-          <motion.span 
-            className="user-name"
-            whileHover={{ scale: 1.05 }}
+        <div className="navbar-center">
+          <Nav className="nav-links">
+            <Nav.Item 
+              as={Link} 
+              to="/dashboard"
+              className={isActive('/dashboard') ? 'active' : ''}
+            >
+              <span className="nav-icon">📊</span>
+              Dashboard
+            </Nav.Item>
+            <Nav.Item 
+              as={Link} 
+              to="/quizzes"
+              className={isActive('/quizzes') ? 'active' : ''}
+            >
+              <span className="nav-icon">📝</span>
+              Quizzes
+            </Nav.Item>
+            <Nav.Item 
+              as={Link} 
+              to="/upload"
+              className={isActive('/upload') ? 'active' : ''}
+            >
+              <span className="nav-icon">📤</span>
+              Upload
+            </Nav.Item>
+            <Nav.Item 
+              as={Link} 
+              to="/live-quizzes"
+              className={isActive('/live-quizzes') ? 'active' : ''}
+            >
+              <span className="nav-icon">👥</span>
+              Live Quizzes
+            </Nav.Item>
+          </Nav>
+        </div>
+
+        <div className="navbar-right">
+          <Dropdown
+            renderToggle={(props, ref) => (
+              <Button {...props} ref={ref} appearance="subtle" className="user-button">
+                <Avatar circle size="sm" className="user-avatar">
+                  {getUserInitials(userName)}
+                </Avatar>
+                <div className="user-info">
+                  <span className="user-name">{userName || 'User'}</span>
+                  <span className="user-role">Student</span>
+                </div>
+                <span className="dropdown-icon">▼</span>
+              </Button>
+            )}
+            placement="bottomEnd"
           >
-            {userName}
-          </motion.span>
-          <motion.button
-            className="logout-button"
-            onClick={handleLogout}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Logout
-          </motion.button>
+            <Dropdown.Item>
+              <span className="dropdown-item-icon">👤</span>
+              Profile
+            </Dropdown.Item>
+            <Dropdown.Item>
+              <span className="dropdown-item-icon">⚙️</span>
+              Settings
+            </Dropdown.Item>
+            <Dropdown.Item divider />
+            <Dropdown.Item onSelect={handleLogout}>
+              <span className="dropdown-item-icon">🚪</span>
+              Logout
+            </Dropdown.Item>
+          </Dropdown>
         </div>
       </div>
-    </motion.nav>
+    </RSNavbar>
   );
 };
 

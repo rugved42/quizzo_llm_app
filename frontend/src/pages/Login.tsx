@@ -3,15 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Form, Button, Panel, Container, Header, Content, Footer, Message } from 'rsuite';
 import EyeCloseIcon from '@rsuite/icons/EyeClose';
 import EyeRoundIcon from '@rsuite/icons/EyeRound';
-import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import './Login.css';
 
-interface LoginProps {
-  onAuthSuccess: () => void;
-}
-
-const Login: React.FC<LoginProps> = ({ onAuthSuccess }) => {
+const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -25,33 +22,26 @@ const Login: React.FC<LoginProps> = ({ onAuthSuccess }) => {
     setError(null);
 
     try {
-      const response = await axios.post(
-        'http://localhost:8001/api/auth/login',
-        formData,
-        { 
-          withCredentials: true,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await fetch('http://localhost:8001/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData),
+        credentials: 'include'
+      });
 
-      if (response.data.access_token) {
-        localStorage.setItem('token', response.data.access_token);
-        localStorage.setItem('studentId', response.data.student_id);
-        localStorage.setItem('userName', response.data.name);
-        onAuthSuccess();
-        navigate('/dashboard', { replace: true });
-      } else {
-        setError('Invalid response from server');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
       }
+
+      login(data.access_token, data.student_id, data.name);
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error('Login error:', err);
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else {
-        setError('Failed to login. Please try again.');
-      }
+      setError(err.message || 'Failed to login. Please try again.');
     } finally {
       setLoading(false);
     }
