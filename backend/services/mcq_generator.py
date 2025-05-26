@@ -140,6 +140,14 @@ class MCQGenerator:
     def _process_chunk(self, text, number_of_questions, subject, tone, retry_count=0):
         """Process a single chunk of text and generate questions."""
         try:
+            # Map tone to difficulty level
+            difficulty_map = {
+                'easy': 'easy',
+                'moderate': 'medium',
+                'hard': 'hard'
+            }
+            difficulty = difficulty_map.get(tone.lower(), 'medium')
+
             with get_openai_callback() as cb:
                 response = self.generate_evaluate_chain({
                     "text": text,
@@ -169,7 +177,8 @@ class MCQGenerator:
                 question = {
                     "question": value["mcq"],
                     "options": options,
-                    "correct_answer": value["correct"]
+                    "correct_answer": value["correct"],
+                    "difficulty": difficulty  # Use the mapped difficulty
                 }
                 formatted_questions.append(question)
 

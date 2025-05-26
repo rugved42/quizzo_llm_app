@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Button, Panel, Loader, Message, Grid, Row, Col } from 'rsuite';
+import 'rsuite/dist/rsuite.min.css';
 
 interface Quiz {
   id: number;
@@ -14,11 +16,7 @@ interface Quiz {
 interface TextbookQuizzes {
   textbook_id: number;
   textbook_title: string;
-  quizzes: {
-    easy: Quiz[];
-    medium: Quiz[];
-    hard: Quiz[];
-  };
+  quizzes: Quiz[];
 }
 
 const QuizList: React.FC = () => {
@@ -52,6 +50,8 @@ const QuizList: React.FC = () => {
           }
         );
         console.log('Quizzes response:', response.data);
+        console.log('First textbook quizzes:', response.data[0]?.quizzes);
+        console.log('Type of quizzes:', typeof response.data[0]?.quizzes);
         setTextbookQuizzes(response.data);
       } catch (err: any) {
         console.error('Error fetching quizzes:', err);
@@ -78,116 +78,130 @@ const QuizList: React.FC = () => {
     navigate(`/quiz/${quizId}`);
   };
 
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+      case 'easy':
+        return 'green';
+      case 'medium':
+        return 'orange';
+      case 'hard':
+        return 'red';
+      default:
+        return 'blue';
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading quizzes...</p>
-        </div>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Loader size="md" content="Loading quizzes..." />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">Error</div>
-          <p className="text-gray-600">{error}</p>
-          {error.includes('No quizzes available') ? (
-            <button
-              onClick={() => navigate('/upload')}
-              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Upload Textbook
-            </button>
-          ) : (
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Try Again
-            </button>
-          )}
-        </div>
+      <div style={{ padding: '20px' }}>
+        <Message type="error" header="Error">
+          {error}
+        </Message>
+        {error.includes('No quizzes available') ? (
+          <Button
+            appearance="primary"
+            onClick={() => navigate('/upload')}
+            style={{ marginTop: '20px' }}
+          >
+            Upload Textbook
+          </Button>
+        ) : (
+          <Button
+            appearance="primary"
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '20px' }}
+          >
+            Try Again
+          </Button>
+        )}
       </div>
     );
   }
 
   if (textbookQuizzes.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">No quizzes available.</p>
-          <button
-            onClick={() => navigate('/upload')}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Upload Textbook
-          </button>
-        </div>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Message type="info" header="No Quizzes">
+          No quizzes available.
+        </Message>
+        <Button
+          appearance="primary"
+          onClick={() => navigate('/upload')}
+          style={{ marginTop: '20px' }}
+        >
+          Upload Textbook
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-            Available Quizzes
-          </h1>
-          <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
-            Select a quiz to begin testing your knowledge
-          </p>
-        </div>
-
-        <div className="mt-12 space-y-12">
-          {textbookQuizzes.map((textbook) => (
-            <div key={textbook.textbook_id} className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900">{textbook.textbook_title}</h2>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(textbook.quizzes).map(([difficulty, quizzes]) => (
-                  quizzes.map((quiz) => (
-                    <div
-                      key={quiz.id}
-                      className="bg-white overflow-hidden shadow rounded-lg"
-                    >
-                      <div className="px-4 py-5 sm:p-6">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {quiz.title}
-                        </h3>
-                        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                          <div>
-                            <p>{quiz.question_count} questions</p>
-                            <p>{quiz.time_limit} minutes time limit</p>
-                            <p className="capitalize">{difficulty} difficulty</p>
-                          </div>
-                          <div>
-                            <p>
-                              Created on{' '}
-                              {new Date(quiz.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-6">
-                          <button
-                            onClick={() => handleStartQuiz(quiz.id)}
-                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          >
-                            Start Quiz
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+    <div style={{ padding: '20px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>
+          Available Quizzes
+        </h2>
+        <p style={{ color: '#666' }}>
+          Select a quiz to begin testing your knowledge
+        </p>
       </div>
+
+      <Grid fluid>
+        {textbookQuizzes.map((textbook) => {
+          const quizzes = Array.isArray(textbook.quizzes) ? textbook.quizzes : [];
+          console.log(`Quizzes for ${textbook.textbook_title}:`, quizzes);
+          
+          return (
+            <div key={textbook.textbook_id} style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>
+                {textbook.textbook_title}
+              </h3>
+              <Row>
+                {quizzes.map((quiz) => (
+                  <Col xs={24} sm={12} md={8} key={quiz.id}>
+                    <Panel
+                      shaded
+                      style={{ marginBottom: '15px' }}
+                      header={
+                        <div style={{ fontWeight: 'bold' }}>
+                          {quiz.title}
+                        </div>
+                      }
+                    >
+                      <div style={{ marginBottom: '15px' }}>
+                        <p>{quiz.question_count} questions</p>
+                        <p>{quiz.time_limit} minutes time limit</p>
+                        <p style={{ color: getDifficultyColor(quiz.difficulty) }}>
+                          {quiz.difficulty.charAt(0).toUpperCase() + quiz.difficulty.slice(1)} difficulty
+                        </p>
+                        <p>
+                          Created on {new Date(quiz.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        appearance="primary"
+                        color="blue"
+                        block
+                        onClick={() => handleStartQuiz(quiz.id)}
+                      >
+                        Start Quiz
+                      </Button>
+                    </Panel>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          );
+        })}
+      </Grid>
     </div>
   );
 };

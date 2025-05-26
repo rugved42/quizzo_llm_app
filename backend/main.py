@@ -13,45 +13,36 @@ import bcrypt
 import fitz
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import inspect
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
-# Add a file handler to save logs
-file_handler = logging.FileHandler('app.log')
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(file_handler)
-
-# Add a console handler to show logs in terminal
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(console_handler)
-
 app = Flask(__name__)
 
-# Configure CORS - More permissive for development
-CORS(app, 
-     resources={
-         r"/api/*": {
-             "origins": ["http://localhost:3000"],
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "Accept", "Content-Length", "X-Requested-With"],
-             "expose_headers": ["Content-Type", "Authorization"],
-             "supports_credentials": True,
-             "max_age": 3600
-         }
-     })
+# Configure CORS
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type", "Authorization"],
+        "max_age": 3600
+    }
+})
 
 # Configure database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quizzes.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/quizzes.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 db.init_app(app)
@@ -71,13 +62,113 @@ mcq_generator = MCQGenerator()
 load_dotenv()
 
 # Configure JWT
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Use a default key for development
-print(app.config['JWT_SECRET_KEY'])
-app.config['JWT_TOKEN_LOCATION'] = ['headers']
-app.config['JWT_HEADER_NAME'] = 'Authorization'
-app.config['JWT_HEADER_TYPE'] = 'Bearer'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600  # 1 hour
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 jwt = JWTManager(app)
+
+# User Routes
+@app.route('/api/user/results/<string:student_id>', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def get_student_results(student_id):
+    logger.info("="*50)
+    logger.info(f"GET STUDENT RESULTS REQUEST RECEIVED for student_id: {student_id}")
+    logger.info(f"Request Method: {request.method}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
+    
+    if request.method == 'OPTIONS':
+        logger.info("Handling OPTIONS request")
+        response = jsonify({})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 200
+
+    try:
+        # Get the current user from JWT token
+        current_user = get_jwt_identity()
+        logger.info(f"Current user from JWT: {current_user}")
+        logger.info(f"Requested student_id: {student_id}")
+        
+        # Verify the requesting user matches the student_id
+        if current_user != student_id:
+            logger.error(f"Unauthorized access attempt. Current user: {current_user}, Requested student: {student_id}")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Get student to verify they exist
+        student = Student.query.filter_by(student_id=student_id).first()
+        if not student:
+            logger.error(f"Student not found with ID: {student_id}")
+            return jsonify({'error': 'Student not found'}), 404
+            
+        logger.info(f"Found student: {student.name} (ID: {student.student_id})")
+        
+        # Get quiz results
+        results = QuizResult.query.filter_by(student_id=student_id).all()
+        logger.info(f"Found {len(results)} quiz results for student")
+        
+        # Log each result for debugging
+        for r in results:
+            logger.info(f"Result ID: {r.id}, Quiz ID: {r.quiz_id}, Score: {r.score}")
+        
+        response_data = [{
+            'id': r.id,
+            'quiz_id': r.quiz_id,
+            'score': r.score,
+            'answers': r.answers,
+            'question_times': r.question_times,
+            'submitted_at': r.submitted_at.isoformat() if r.submitted_at else None
+        } for r in results]
+        
+        logger.info(f"Prepared response data: {response_data}")
+        
+        response = jsonify(response_data)
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        logger.info("Successfully returning quiz results")
+        logger.info("="*50)
+        return response, 200
+        
+    except Exception as e:
+        logger.error("="*50)
+        logger.error(f"Error in get_student_results: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("="*50)
+        
+        response = jsonify({'error': str(e)})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 500
+
+@app.route('/api/user/<string:student_id>', methods=['GET'])
+@jwt_required()
+def get_student(student_id):
+    # Verify the requesting user matches the student_id
+    current_user = get_jwt_identity()
+    if current_user != student_id:
+        return jsonify({'error': 'Unauthorized access'}), 403
+
+    student = Student.query.filter_by(student_id=student_id).first()
+    if not student:
+        return jsonify({'error': 'Student not found'}), 404
+
+    results = QuizResult.query.filter_by(student_id=student_id).all()
+    
+    return jsonify({
+        'id': student.id,
+        'name': student.name,
+        'email': student.email,
+        'quiz_results': [{
+            'id': r.id,
+            'quiz_id': r.quiz_id,
+            'score': r.score,
+            'time_taken': r.time_taken,
+            'submitted_at': r.submitted_at.isoformat() if r.submitted_at else None
+        } for r in results]
+    })
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -373,8 +464,7 @@ def upload_file():
             'hard': 'hard'
         }
         difficulty = difficulty_map.get(tone.lower(), 'medium')
-
-        logger.info(f"Parameters - Questions: {number_of_questions}, Subject: {subject}, Tone: {tone}, Mapped Difficulty: {difficulty}")
+        logger.info(f"Mapped tone '{tone}' to difficulty '{difficulty}'")
 
         filename = secure_filename(file.filename)
         title = os.path.splitext(filename)[0]
@@ -432,66 +522,54 @@ def upload_file():
             db.session.add(chapter)
             db.session.commit()
             
-            # Group questions by difficulty
-            questions_by_difficulty = {
-                'easy': [],
-                'medium': [],
-                'hard': []
-            }
-
-            # Add questions to the chapter and group them by difficulty
+            # Add questions to the chapter
             for q in result['questions']:
                 question = Question(
                     text=q['question'],
                     correct_answer=q['correct_answer'],
                     options=q['options'],
-                    difficulty=difficulty,  # Use mapped difficulty
+                    difficulty=difficulty,  # Use the mapped difficulty
                     chapter_id=chapter.id
                 )
                 db.session.add(question)
-                questions_by_difficulty[difficulty].append(question)
             
             db.session.commit()
             
-            # Create quizzes for each difficulty level if there are enough questions
-            created_quizzes = []
-            for diff, questions in questions_by_difficulty.items():
-                if len(questions) >= 5:  # Only create quiz if there are at least 5 questions
-                    quiz = Quiz(
-                        title=f"{title} - {diff.capitalize()} Level Quiz",
-                        chapter_id=chapter.id,
-                        textbook_id=textbook.id,
-                        difficulty=diff,
-                        time_limit=30  # 30 minutes per quiz
-                    )
-                    db.session.add(quiz)
-                    db.session.commit()
+            # Create a single quiz with all questions
+            quiz = Quiz(
+                title=f"{title} - {difficulty.capitalize()} Level Quiz",
+                chapter_id=chapter.id,
+                textbook_id=textbook.id,
+                difficulty=difficulty,  # Use the mapped difficulty
+                time_limit=30  # 30 minutes per quiz
+            )
+            db.session.add(quiz)
+            db.session.commit()
 
-                    # Add questions to the quiz
-                    for i, question in enumerate(questions):
-                        quiz_question = QuizQuestion(
-                            quiz_id=quiz.id,
-                            question_id=question.id,
-                            order=i + 1
-                        )
-                        db.session.add(quiz_question)
-
-                    created_quizzes.append({
-                        'id': quiz.id,
-                        'title': quiz.title,
-                        'difficulty': diff,
-                        'question_count': len(questions)
-                    })
+            # Add all questions to the quiz
+            questions = Question.query.filter_by(chapter_id=chapter.id).all()
+            for i, question in enumerate(questions):
+                quiz_question = QuizQuestion(
+                    quiz_id=quiz.id,
+                    question_id=question.id,
+                    order=i + 1
+                )
+                db.session.add(quiz_question)
 
             db.session.commit()
-            logger.info(f"Successfully created {len(created_quizzes)} quizzes")
+            logger.info(f"Successfully created quiz with difficulty: {difficulty}")
 
             response = jsonify({
                 "message": "PDF processed successfully",
                 "textbook_id": textbook.id,
                 "chapters": 1,
                 "questions_generated": len(result['questions']),
-                "quizzes_created": created_quizzes,
+                "quiz_created": {
+                    'id': quiz.id,
+                    'title': quiz.title,
+                    'difficulty': quiz.difficulty,
+                    'question_count': len(questions)
+                },
                 "review": result.get('review', 'No review available'),
                 "subject": subject,
                 "tone": tone,
@@ -519,22 +597,62 @@ def upload_file():
         error_response.headers['Access-Control-Allow-Credentials'] = 'true'
         return error_response, 500
 
-@app.route('/textbooks', methods=['GET'])
+@app.route('/api/textbooks', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def get_textbooks():
+    logger.info("="*50)
+    logger.info("GET TEXTBOOKS REQUEST RECEIVED")
+    logger.info(f"Request Method: {request.method}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
+    
+    if request.method == 'OPTIONS':
+        logger.info("Handling OPTIONS request")
+        response = jsonify({})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 200
+
     try:
-        # Get all textbooks from the database
-        textbooks = Textbook.query.all()
+        # Get the student ID from the JWT token
+        student_id = get_jwt_identity()
+        logger.info(f"Student ID from token: {student_id}")
+
+        # Get all textbooks for this student
+        textbooks = Textbook.query.filter_by(student_id=student_id).all()
+        logger.info(f"Found {len(textbooks)} textbooks for student {student_id}")
+        
         textbook_data = [{
             "id": t.id,
             "title": t.title,
             "question_count": sum(len(chapter.questions) for chapter in t.chapters),
-            "created_at": t.created_at.isoformat()
+            "created_at": t.created_at.isoformat() if t.created_at else None
         } for t in textbooks]
         
-        return jsonify(textbook_data)
+        logger.info(f"Prepared textbook data: {textbook_data}")
+        
+        response = jsonify(textbook_data)
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        logger.info("Successfully returning textbooks")
+        logger.info("="*50)
+        return response, 200
+        
     except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    
+        logger.error("="*50)
+        logger.error(f"Error in get_textbooks: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("="*50)
+        
+        response = jsonify({'error': str(e)})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 500
+
 @app.route('/textbooks/<int:textbook_id>/create-quiz', methods=['POST'])
 def create_textbook_quiz(textbook_id):
     try:
@@ -952,14 +1070,9 @@ def get_quizzes():
             
             # Get all quizzes for this textbook
             quizzes = Quiz.query.filter_by(textbook_id=textbook.id).all()
+            logger.info(f"Found {len(quizzes)} quizzes for textbook {textbook.id}")
             
-            # Group quizzes by difficulty
-            quizzes_by_difficulty = {
-                'easy': [],
-                'medium': [],
-                'hard': []
-            }
-            
+            # Add all quizzes directly to the list
             for quiz in quizzes:
                 quiz_data = {
                     "id": quiz.id,
@@ -969,13 +1082,12 @@ def get_quizzes():
                     "created_at": quiz.created_at.isoformat() if quiz.created_at else None,
                     "question_count": len(quiz.questions)
                 }
-                quizzes_by_difficulty[quiz.difficulty].append(quiz_data)
+                textbook_quizzes["quizzes"].append(quiz_data)
             
-            # Add quizzes to textbook data
-            textbook_quizzes["quizzes"] = quizzes_by_difficulty
             quiz_list.append(textbook_quizzes)
         
         logger.info(f"Returning quizzes for {len(quiz_list)} textbooks")
+        logger.info(f"Response data: {quiz_list}")
         return jsonify(quiz_list), 200
 
     except Exception as e:

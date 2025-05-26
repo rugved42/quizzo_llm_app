@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Panel, Loader, Message, Button, Progress, Stack, Radio } from 'rsuite';
+import 'rsuite/dist/rsuite.min.css';
 
 interface Question {
   question_id: number;
@@ -76,30 +78,28 @@ const QuizResults: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Loader size="md" content="Loading results..." />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
-        </div>
+      <div style={{ padding: '20px' }}>
+        <Message type="error" header="Error">
+          {error}
+        </Message>
       </div>
     );
   }
 
   if (!result) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Notice: </strong>
-          <span className="block sm:inline">No results found</span>
-        </div>
+      <div style={{ padding: '20px' }}>
+        <Message type="warning" header="Notice">
+          No results found
+        </Message>
       </div>
     );
   }
@@ -111,89 +111,114 @@ const QuizResults: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Quiz Results</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-blue-800 mb-2">Score</h3>
-            <div className="text-3xl font-bold text-blue-600">{result.score.toFixed(1)}%</div>
-            <div className="text-sm text-blue-600">
-              {result.correct_answers} out of {result.total_questions} correct
-            </div>
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+      <Panel shaded>
+        <Stack justifyContent="space-between" alignItems="center" style={{ marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>Quiz Results</h2>
+          <div style={{ fontSize: '16px', color: '#666' }}>
+            Submitted on {new Date(result.submitted_at).toLocaleString()}
           </div>
+        </Stack>
 
-          <div className="bg-green-50 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-green-800 mb-2">Time Taken</h3>
-            <div className="text-3xl font-bold text-green-600">{formatTime(result.time_taken)}</div>
-            <div className="text-sm text-green-600">
-              Submitted on {result.submitted_at ? new Date(result.submitted_at).toLocaleString() : 'N/A'}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          {result.questions && result.questions.map((question, index) => (
-            <div
-              key={question.question_id}
-              className={`p-4 rounded-lg border ${
-                question.is_correct
-                  ? 'border-green-200 bg-green-50'
-                  : 'border-red-200 bg-red-50'
-              }`}
-            >
-              <h4 className="font-semibold mb-2 text-gray-800">
-                Question {index + 1}: {question.question_text}
-              </h4>
-              <div className="space-y-2">
-                {question.options && question.options.map((option, optionIndex) => (
-                  <div
-                    key={optionIndex}
-                    className={`p-2 rounded ${
-                      option === question.correct_answer
-                        ? 'bg-green-100 text-green-800'
-                        : option === question.student_answer && option !== question.correct_answer
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-50 text-gray-800'
-                    }`}
-                  >
-                    {option}
-                    {option === question.correct_answer && ' ✓'}
-                    {option === question.student_answer && option !== question.correct_answer && ' ✗'}
-                  </div>
-                ))}
-                <div className="mt-2 text-sm">
-                  <p className="text-gray-600">
-                    Your answer: <span className="font-medium">{question.student_answer || 'Not answered'}</span>
-                  </p>
-                  <p className="text-gray-600">
-                    Correct answer: <span className="font-medium">{question.correct_answer}</span>
-                  </p>
-                  <p className="text-gray-600">
-                    Time spent: <span className="font-medium">{formatTime(question.time_spent)}</span>
-                  </p>
-                </div>
+        <Stack spacing={20} style={{ marginBottom: '30px' }}>
+          <Panel bordered style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '18px', marginBottom: '10px' }}>Score</h3>
+            <Progress.Line 
+              percent={result.score} 
+              status={result.score >= 70 ? 'success' : result.score >= 50 ? 'active' : 'fail'}
+              strokeWidth={10}
+            />
+            <div style={{ marginTop: '10px', textAlign: 'center' }}>
+              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{result.score.toFixed(1)}%</span>
+              <div style={{ color: '#666' }}>
+                {result.correct_answers} out of {result.total_questions} correct
               </div>
             </div>
-          ))}
+          </Panel>
+
+          <Panel bordered style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '18px', marginBottom: '10px' }}>Time Taken</h3>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTime(result.time_taken)}</span>
+            </div>
+          </Panel>
+        </Stack>
+
+        <div style={{ marginBottom: '30px' }}>
+          <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Question Analysis</h3>
+          <Stack direction="column" spacing={15}>
+            {result.questions.map((question, index) => (
+              <Panel 
+                key={question.question_id}
+                bordered
+                style={{
+                  backgroundColor: question.is_correct ? '#f0f9ff' : '#fff1f0',
+                  borderColor: question.is_correct ? '#91caff' : '#ffccc7'
+                }}
+              >
+                <Stack justifyContent="space-between" alignItems="flex-start">
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '16px', marginBottom: '10px' }}>
+                      Question {index + 1}: {question.question_text}
+                    </h4>
+                    <Stack direction="column" spacing={10}>
+                      {question.options.map((option, optionIndex) => (
+                        <div
+                          key={optionIndex}
+                          style={{
+                            padding: '10px',
+                            borderRadius: '6px',
+                            backgroundColor: option === question.correct_answer
+                              ? '#f6ffed'
+                              : option === question.student_answer && option !== question.correct_answer
+                              ? '#fff2f0'
+                              : '#f5f5f5',
+                            border: '1px solid',
+                            borderColor: option === question.correct_answer
+                              ? '#b7eb8f'
+                              : option === question.student_answer && option !== question.correct_answer
+                              ? '#ffccc7'
+                              : '#d9d9d9'
+                          }}
+                        >
+                          <Stack spacing={10}>
+                            {option === question.correct_answer && (
+                              <span style={{ color: '#52c41a', fontWeight: 'bold' }}>✓</span>
+                            )}
+                            {option === question.student_answer && option !== question.correct_answer && (
+                              <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>✗</span>
+                            )}
+                            <span>{option}</span>
+                          </Stack>
+                        </div>
+                      ))}
+                    </Stack>
+                    <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                      Time spent: {formatTime(question.time_spent)}
+                    </div>
+                  </div>
+                </Stack>
+              </Panel>
+            ))}
+          </Stack>
         </div>
 
-        <div className="mt-8 flex justify-between">
-          <button
+        <Stack justifyContent="space-between">
+          <Button
+            appearance="default"
             onClick={handleBackToQuizzes}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
           >
             Back to Quizzes
-          </button>
-          <button
+          </Button>
+          <Button
+            appearance="primary"
+            color="green"
             onClick={handleRetakeQuiz}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Retake Quiz
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Stack>
+      </Panel>
     </div>
   );
 };

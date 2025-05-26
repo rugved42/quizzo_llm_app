@@ -19,5 +19,7 @@ frontend/build/*
 *.log
 **/*.log
 
+backend/app/__pycache__/*
+
 
 
