@@ -9,10 +9,13 @@ interface Question {
   correct_answer: string;
 }
 
+type Difficulty = 'easy' | 'medium' | 'hard' | 'dynamic';
+
 const LiveQuizzes: React.FC = () => {
   const navigate = useNavigate();
   const [topic, setTopic] = useState('');
-  const [difficulty, setDifficulty] = useState('medium');
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [isDynamicMode, setIsDynamicMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -25,6 +28,8 @@ const LiveQuizzes: React.FC = () => {
   const [generatingQuestion, setGeneratingQuestion] = useState(false);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
+  const [consecutiveIncorrect, setConsecutiveIncorrect] = useState(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -70,6 +75,9 @@ const LiveQuizzes: React.FC = () => {
 
     setGeneratingQuestion(true);
     try {
+      // Get the current difficulty level to send to the backend
+      const currentDifficulty = isDynamicMode ? difficulty : difficulty;
+      
       const response = await fetch('http://localhost:8001/api/generate-live-quiz', {
         method: 'POST',
         headers: {
@@ -78,9 +86,16 @@ const LiveQuizzes: React.FC = () => {
         },
         body: JSON.stringify({
           topic,
-          difficulty,
+          difficulty: currentDifficulty,
           num_questions: 1,
-          used_questions: Array.from(usedQuestions)
+          used_questions: Array.from(usedQuestions),
+          is_dynamic_mode: isDynamicMode,
+          performance_metrics: {
+            consecutive_correct: consecutiveCorrect,
+            consecutive_incorrect: consecutiveIncorrect,
+            total_questions: questionsAttempted,
+            correct_answers: correctAnswers
+          }
         })
       });
 
@@ -94,6 +109,11 @@ const LiveQuizzes: React.FC = () => {
 
       const data = await response.json();
       const newQuestion = data.questions[0];
+      
+      // If the backend suggests a difficulty change in dynamic mode, update it
+      if (isDynamicMode && data.suggested_difficulty) {
+        setDifficulty(data.suggested_difficulty);
+      }
       
       setUsedQuestions(prev => {
         const newSet = new Set(prev);
@@ -130,13 +150,45 @@ const LiveQuizzes: React.FC = () => {
     }
   };
 
+  const adjustDifficulty = (isCorrect: boolean) => {
+    if (!isDynamicMode) return;
+    
+    if (isCorrect) {
+      setConsecutiveCorrect(prev => prev + 1);
+      setConsecutiveIncorrect(0);
+      
+      // Increase difficulty after 2 consecutive correct answers
+      if (consecutiveCorrect >= 1) {
+        if (difficulty === 'easy') {
+          setDifficulty('medium');
+        } else if (difficulty === 'medium') {
+          setDifficulty('hard');
+        }
+      }
+    } else {
+      setConsecutiveIncorrect(prev => prev + 1);
+      setConsecutiveCorrect(0);
+      
+      // Decrease difficulty after 2 consecutive incorrect answers
+      if (consecutiveIncorrect >= 1) {
+        if (difficulty === 'hard') {
+          setDifficulty('medium');
+        } else if (difficulty === 'medium') {
+          setDifficulty('easy');
+        }
+      }
+    }
+  };
+
   const handleAnswerSelect = (answer: string) => {
     if (!currentQuestion) return;
     
     setSelectedAnswer(answer);
-    if (answer === currentQuestion.correct_answer) {
+    const isCorrect = answer === currentQuestion.correct_answer;
+    if (isCorrect) {
       setCorrectAnswers(prev => prev + 1);
     }
+    adjustDifficulty(isCorrect);
     setQuestionsAttempted(prev => prev + 1);
   };
 
@@ -160,6 +212,10 @@ const LiveQuizzes: React.FC = () => {
     setSelectedAnswer(null);
     setQuizCompleted(false);
     setUsedQuestions(new Set());
+    setDifficulty('medium');
+    setIsDynamicMode(false);
+    setConsecutiveCorrect(0);
+    setConsecutiveIncorrect(0);
   };
 
   if (checkingAuth) {
@@ -191,6 +247,17 @@ const LiveQuizzes: React.FC = () => {
         <Card className="quiz-card">
           <div className="question-counter">
             Questions Attempted: {questionsAttempted}
+            {isDynamicMode && (
+              <div className="difficulty-meter">
+                <div className="difficulty-label">Current Difficulty:</div>
+                <div className="difficulty-level">
+                  <div className={`difficulty-dot ${difficulty === 'easy' ? 'active' : ''}`}></div>
+                  <div className={`difficulty-dot ${difficulty === 'medium' ? 'active' : ''}`}></div>
+                  <div className={`difficulty-dot ${difficulty === 'hard' ? 'active' : ''}`}></div>
+                </div>
+                <div className="difficulty-text">{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</div>
+              </div>
+            )}
           </div>
           <h3 className="question-text">{currentQuestion.question}</h3>
           <div className="options-grid">
@@ -264,22 +331,46 @@ const LiveQuizzes: React.FC = () => {
 
             <div className="difficulty-buttons">
               <Button
-                appearance={difficulty === 'easy' ? 'primary' : 'default'}
-                onClick={() => setDifficulty('easy')}
+                appearance={!isDynamicMode && difficulty === 'easy' ? 'primary' : 'default'}
+                onClick={() => {
+                  setDifficulty('easy');
+                  setIsDynamicMode(false);
+                }}
               >
                 Easy
               </Button>
               <Button
-                appearance={difficulty === 'medium' ? 'primary' : 'default'}
-                onClick={() => setDifficulty('medium')}
+                appearance={!isDynamicMode && difficulty === 'medium' ? 'primary' : 'default'}
+                onClick={() => {
+                  setDifficulty('medium');
+                  setIsDynamicMode(false);
+                }}
               >
                 Medium
               </Button>
               <Button
-                appearance={difficulty === 'hard' ? 'primary' : 'default'}
-                onClick={() => setDifficulty('hard')}
+                appearance={!isDynamicMode && difficulty === 'hard' ? 'primary' : 'default'}
+                onClick={() => {
+                  setDifficulty('hard');
+                  setIsDynamicMode(false);
+                }}
               >
                 Hard
+              </Button>
+              <Button
+                appearance={isDynamicMode ? 'primary' : 'default'}
+                onClick={() => {
+                  if (isDynamicMode) {
+                    // If dynamic mode is on, turn it off and keep the current difficulty
+                    setIsDynamicMode(false);
+                  } else {
+                    // If dynamic mode is off, turn it on and set to medium
+                    setIsDynamicMode(true);
+                    setDifficulty('medium');
+                  }
+                }}
+              >
+                Dynamic
               </Button>
             </div>
 
