@@ -1,76 +1,55 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import FileUpload from './components/FileUpload';
-import QuizList from './components/QuizList';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import QuizList from './pages/QuizList';
 import QuizTaking from './pages/QuizTaking';
-import Results from './pages/Results';
-import StudentRegistration from './pages/StudentRegistration';
+import QuizResults from './pages/QuizResults';
+import FileUpload from './components/FileUpload';
 import './App.css';
 
-const Navigation = () => {
-  const location = useLocation();
-  const studentId = localStorage.getItem('studentId');
+const App: React.FC = () => {
+  const [isRegistered, setIsRegistered] = useState<boolean>(false);
 
-  return (
-    <nav className="navbar">
-      <div className="navbar-content">
-        <Link to="/" className="navbar-brand">Quizzo</Link>
-        <div className="nav-links">
-          {studentId ? (
-            <>
-              <Link 
-                to="/" 
-                className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
-              >
-                Home
-              </Link>
-              <Link 
-                to="/upload" 
-                className={`nav-link ${location.pathname === '/upload' ? 'active' : ''}`}
-              >
-                Upload Quiz
-              </Link>
-              <button 
-                onClick={() => {
-                  localStorage.removeItem('studentId');
-                  window.location.href = '/';
-                }}
-                className="nav-link"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <Link 
-              to="/register" 
-              className={`nav-link ${location.pathname === '/register' ? 'active' : ''}`}
-            >
-              Register
-            </Link>
-          )}
-        </div>
-      </div>
-    </nav>
-  );
-};
+  useEffect(() => {
+    const checkAuth = () => {
+      const studentId = localStorage.getItem('studentId');
+      setIsRegistered(!!studentId);
+    };
 
-function App() {
+    checkAuth();
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+  
+  const handleLogout = () => {
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userName');
+    setIsRegistered(false);
+    window.location.href = '/';
+  };
+
   return (
     <Router>
-      <div className="App">
-        <Navigation />
-        <div className="container">
+      <div className="min-h-screen bg-gray-50">
+        <Navbar isRegistered={isRegistered} onLogout={handleLogout} />
+        <main className="container mx-auto px-4 py-8">
           <Routes>
-            <Route path="/" element={<QuizList />} />
-            <Route path="/upload" element={<FileUpload />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/quizzes" element={<QuizList />} />
             <Route path="/quiz/:quizId" element={<QuizTaking />} />
-            <Route path="/results/:resultId" element={<Results />} />
-            <Route path="/register" element={<StudentRegistration />} />
+            <Route path="/results/:quizId" element={<QuizResults />} />
+            <Route path="/upload" element={<FileUpload />} />
           </Routes>
-        </div>
+        </main>
       </div>
     </Router>
   );
-}
+};
 
 export default App; 

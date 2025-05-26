@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 
-const StudentRegistration: React.FC = () => {
+const Register: React.FC = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
@@ -34,20 +34,42 @@ const StudentRegistration: React.FC = () => {
 
     try {
       const response = await axios.post(
-        'http://localhost:8001/api/auth/register/student',
+        'http://localhost:8001/api/auth/register',
         {
           name: formData.name,
           email: formData.email,
           password: formData.password
         },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
       );
 
-      if (response.data.token) {
+      if (response.data.access_token) {
+        // Store the token and user info
+        console.log('Storing token:', response.data.access_token);
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('studentId', response.data.student_id);
+        localStorage.setItem('userName', response.data.name);
+        
+        // Set default authorization header for all future requests
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+        
         navigate('/quizzes');
+      } else {
+        console.error('No access token in response:', response.data);
+        setError('Invalid response from server');
       }
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -57,7 +79,7 @@ const StudentRegistration: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Student Registration
+          Create your account
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Or{' '}
@@ -171,4 +193,4 @@ const StudentRegistration: React.FC = () => {
   );
 };
 
-export default StudentRegistration; 
+export default Register; 

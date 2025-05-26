@@ -4,3 +4,20 @@ frontend/node_modules/
 build/*
 fronend/build/*
 backend/build/*
+backend/__pycache__/*
+uploads/*
+backend/instance/*
+backend/*.env
+# ignore all .env files 
+*.env
+**/*.env
+
+**/__pycache__/*
+
+frontend/build/*
+
+*.log
+**/*.log
+
+
+

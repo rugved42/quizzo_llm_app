@@ -1,5 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Navbar as RSNavbar, Nav, Dropdown } from 'rsuite';
+import 'rsuite/dist/rsuite.min.css';
+import './Navbar.css';
 
 interface NavbarProps {
   isRegistered: boolean;
@@ -7,55 +10,50 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ isRegistered, onLogout }) => {
+  const navigate = useNavigate();
+  const userName = localStorage.getItem('userName');
+
+  const handleLogout = () => {
+    onLogout();
+    navigate('/login');
+  };
+
   return (
-    <nav className="bg-white shadow-lg">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-gray-800">
-              Quiz Maker
-            </Link>
-          </div>
-          <div className="flex space-x-4">
-            {isRegistered ? (
-              <>
-                <Link
-                  to="/"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Home
-                </Link>
-                <Link
-                  to="/upload"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Upload Textbook
-                </Link>
-                <button
-                  onClick={onLogout}
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link
-                to="/register"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Register
-              </Link>
-            )}
-            <Link
-              to="/quizzes"
-              className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Quizzes
-            </Link>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <RSNavbar appearance="subtle" className="custom-navbar">
+      <RSNavbar.Brand>
+        <Link to="/" className="brand-link">
+          Quiz Maker
+        </Link>
+      </RSNavbar.Brand>
+
+      {isRegistered && (
+        <Nav>
+          <Nav.Item onSelect={() => navigate('/quizzes')}>
+            Quizzes
+          </Nav.Item>
+          <Nav.Item onSelect={() => navigate('/upload')}>
+            Upload
+          </Nav.Item>
+        </Nav>
+      )}
+
+      <Nav pullRight>
+        {isRegistered ? (
+          <Dropdown title={userName || 'User'} placement="bottomEnd">
+            <Dropdown.Item>Profile</Dropdown.Item>
+            <Dropdown.Item>Settings</Dropdown.Item>
+            <Dropdown.Separator />
+            <Dropdown.Item onSelect={handleLogout}>
+              Logout
+            </Dropdown.Item>
+          </Dropdown>
+        ) : (
+          <Nav.Item onSelect={() => navigate('/login')}>
+            Login
+          </Nav.Item>
+        )}
+      </Nav>
+    </RSNavbar>
   );
 };
 

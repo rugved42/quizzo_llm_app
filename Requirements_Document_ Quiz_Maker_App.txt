@@ -1,0 +1,324 @@
+﻿Requirements Document: Quiz Maker App 
+
+
+Sanat Batra, Rugved Hattekar
+________________
+
+
+1. Overview
+The Quiz Maker App enables educators to upload PDF textbooks and automatically generate quizzes using AI. It allows users to organize questions by chapter, create and take quizzes, and analyze student performance with visual insights.
+________________
+
+
+2. Features
+2.1 PDF Textbook Upload & Question Generation
+* Upload PDF textbooks via frontend.
+
+* Extract text content using PyPDF2.
+
+* Automatically generate quiz questions using OpenAI API.
+
+* Associate extracted questions with respective chapters.
+
+* Store questions and metadata in a PostgreSQL database.
+
+2.2 Question Organization
+   * Automatically group questions by chapters based on textbook structure.
+
+   * Allow manual editing and reassignment of questions to chapters.
+
+2.3 Quiz Creation
+      * Create quizzes from selected chapter questions.
+
+      * Set quiz parameters:
+
+         * Number of questions
+
+         * Shuffle option
+
+         * Time limit
+
+            * Save quizzes to user account.
+
+2.4 Quiz Taking
+               * User-friendly, responsive interface built with React + Tailwind CSS.
+
+               * Show one question at a time with navigation buttons.
+
+               * Display countdown timer.
+
+               * Auto-save progress locally or to the backend.
+
+2.5 Time Tracking
+                  * Track time spent on each question.
+
+                  * Store time data per question attempt in the database.
+
+2.6 Results & Analytics
+                     * Show:
+
+                        * Score
+
+                        * Correct/incorrect answers
+
+                        * Time spent per question
+
+                           * Display charts using Chart.js:
+
+                              * Time analysis per question
+
+                              * Performance overview
+
+                                 * Allow export of quiz results (PDF or CSV).
+
+2.7 Student Information & Result Storage
+                                    * Store student data (name, email, performance history).
+
+                                    * Store detailed quiz results per user:
+
+                                       * Answers given
+
+                                       * Time spent
+
+                                       * Score
+
+
+________________
+
+
+3. Tech Stack
+3.1 Backend
+                                          * Language: Python 3.8+
+
+                                          * Framework: Flask
+
+                                          * Database: PostgreSQL
+
+                                          * ORM: SQLAlchemy
+
+                                          * PDF Processing: PyPDF2
+
+                                          * AI Integration: OpenAI API (GPT-4)
+
+
+3.2 Frontend
+                                             * Framework: React with TypeScript
+
+                                             * Navigation: React Router
+
+                                             * API Requests: Axios
+
+                                             * Charts & Analytics: Chart.js
+
+                                             * Styling: Tailwind CSS
+
+                                             * Form Handling: React Hook Form (optional)
+
+________________
+
+
+4. APIs and Integration
+4.1 PDF Upload API
+                                                * POST /api/upload
+
+                                                * Validates PDF and extracts content
+
+4.2 Question Generation API
+                                                   * POST /api/generate-questions
+
+                                                   * Sends chapter text to OpenAI API and stores returned questions
+
+4.3 Quiz Management APIs
+                                                      * Create, read, update, delete quizzes
+
+                                                      * Assign questions to quizzes
+
+4.4 Quiz Taking & Submission APIs
+                                                         * GET /api/quiz/:id – Fetch quiz
+
+                                                         * POST /api/submit-quiz – Submit answers and time data
+
+4.5 Analytics APIs
+                                                            * GET /api/results/:user_id – Get quiz results
+
+                                                            * GET /api/analytics/:quiz_id – Get chart-ready analytics data
+
+
+
+
+________________
+
+
+5. Future Enhancements (Optional)
+                                                               * Export quizzes to PDF or share via link
+
+                                                               * Adaptive quizzes (dynamic question difficulty)
+
+                                                               * Group-level analytics for class tracking
+
+# Quiz Maker
+
+A web application that generates quizzes from PDF textbooks, allows students to take timed quizzes, and provides detailed analytics on quiz performance.
+
+## Features
+
+- Upload PDF textbooks and automatically generate quiz questions
+- Organize questions by chapters
+- Create quizzes from chapter questions
+- Take timed quizzes with a user-friendly interface
+- Track time spent on each question
+- View detailed quiz results with correct/incorrect answers
+- Analyze time spent on questions with charts
+- Store student information and quiz results in a database
+
+## Tech Stack
+
+### Backend
+- Python 3.8+
+- Flask
+- SQLAlchemy
+- PostgreSQL
+- PyPDF2 for PDF processing
+- OpenAI API for question generation
+
+### Frontend
+- React with TypeScript
+- React Router for navigation
+- Axios for API calls
+- Chart.js for analytics
+- Tailwind CSS for styling
+
+## Prerequisites
+
+- Python 3.8 or higher
+- Node.js and npm
+- PostgreSQL
+- Homebrew (for macOS)
+
+## Setup
+
+### Backend Setup
+
+1. Install PostgreSQL (if not already installed):
+```bash
+brew install postgresql
+```
+
+2. Create a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+3. Install dependencies:
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+4. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+5. Initialize the database:
+```bash
+flask db upgrade
+```
+
+6. Start the server:
+```bash
+python3 backend/main.py
+```
+
+### Frontend Setup
+
+1. Install Node.js (if not already installed):
+```bash
+brew install node
+```
+
+2. Install dependencies:
+```bash
+cd frontend
+npm install
+```
+
+3. Start the development server:
+```bash
+npm start
+```
+
+## Project Structure
+
+```
+quiz-maker/
+├── backend/           # Flask backend
+├── frontend/          # React frontend
+├── database/          # Database migrations and models
+├── uploads/           # Uploaded PDF files
+├── instance/          # Instance-specific files
+└── venv/             # Python virtual environment
+```
+
+## API Endpoints
+
+### PDF Management
+- `POST /api/pdf/upload` - Upload a PDF textbook
+- `GET /api/pdf/textbooks` - List all textbooks
+- `GET /api/pdf/textbooks/{id}/chapters` - Get chapters for a textbook
+
+### Quiz Management
+- `POST /api/quiz/create` - Create a new quiz
+- `GET /api/quiz/{id}` - Get quiz details
+- `POST /api/quiz/submit` - Submit quiz answers
+- `GET /api/quiz/results/{id}` - Get quiz results
+
+### User Management
+- `POST /api/user/register` - Register a new student
+- `GET /api/user/{id}` - Get student details
+- `GET /api/user/results/{id}` - Get student's quiz results
+
+## Environment Variables
+
+### Backend (.env)
+FLASK_APP=app
+FLASK_ENV=development
+DATABASE_URL=postgresql://localhost/quiz_maker
+SECRET_KEY=your-secret-key
+OPENAI_API_KEY=your-openai-api-key
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Node.js not found**:
+   ```bash
+   brew install node
+   ```
+
+2. **Python command not found**:
+   Use `python3` instead of `python` or create an alias:
+   ```bash
+   echo "alias python=python3" >> ~/.zshrc
+   source ~/.zshrc
+   ```
+
+3. **PostgreSQL issues**:
+   Ensure PostgreSQL is running:
+   ```bash
+   brew services start postgresql
+   ```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+MIT

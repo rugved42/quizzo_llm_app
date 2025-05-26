@@ -1,10 +1,36 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
-import QuizTaking from '../pages/QuizTaking';
+import { useNavigate } from 'react-router-dom';
 
-const QuizTakingWrapper: React.FC = () => {
-  const { quizId } = useParams<{ quizId: string }>();
-  return <QuizTaking quizId={quizId || ''} />;
+interface QuizTakingWrapperProps {
+  children: React.ReactNode;
+}
+
+const QuizTakingWrapper: React.FC<QuizTakingWrapperProps> = ({ children }) => {
+  const navigate = useNavigate();
+
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    e.returnValue = '';
+  };
+
+  React.useEffect(() => {
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="bg-white shadow rounded-lg p-6">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default QuizTakingWrapper; 

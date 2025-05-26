@@ -7,9 +7,11 @@ class Student(db.Model):
     __tablename__ = 'students'
     
     id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.String(36), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    student_id = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    results = db.relationship('QuizResult', backref='student', lazy=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Quiz(db.Model):
@@ -35,7 +37,7 @@ class QuizResult(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
-    student_id = db.Column(db.String(100), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     score = db.Column(db.Float, nullable=False)
     answers = db.Column(db.JSON, nullable=False)  # Store as JSON object
     question_times = db.Column(db.JSON, nullable=False)  # Store as JSON object
