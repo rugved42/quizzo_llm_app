@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Button, Panel, Loader, Message, Progress, Radio, RadioGroup, Stack, ButtonGroup, IconButton } from 'rsuite';
-import { ArrowLeft, ArrowRight, Check } from '@rsuite/icons';
-import 'rsuite/dist/rsuite.min.css';
+import { motion, AnimatePresence } from 'framer-motion';
+import './QuizTaking.css';
 
 interface Question {
   id: number;
@@ -31,6 +30,7 @@ const QuizTaking: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     fetchQuiz();
@@ -43,7 +43,6 @@ const QuizTaking: React.FC = () => {
   }, [quiz]);
 
   useEffect(() => {
-    // Reset question start time when question changes
     setQuestionStartTime(Date.now());
   }, [currentQuestion]);
 
@@ -67,17 +66,13 @@ const QuizTaking: React.FC = () => {
   const fetchQuiz = async () => {
     try {
       const token = localStorage.getItem('token');
-      console.log('Token from localStorage:', token);
-      
       if (!token) {
-        console.error('No token found in localStorage');
         setError('Not authenticated. Please login.');
         setLoading(false);
         navigate('/login');
         return;
       }
 
-      console.log('Fetching quiz with ID:', quizId);
       const response = await axios.get(
         `http://localhost:8001/api/quizzes/${quizId}`,
         {
@@ -88,18 +83,10 @@ const QuizTaking: React.FC = () => {
         }
       );
       
-      console.log('Quiz response:', response.data);
       setQuiz(response.data);
       setCurrentQuestion(0);
     } catch (err: any) {
       console.error('Error fetching quiz:', err);
-      console.error('Error details:', {
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        headers: err.response?.headers
-      });
-      
       if (err.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('studentId');
@@ -124,7 +111,6 @@ const QuizTaking: React.FC = () => {
   };
 
   const handleQuestionChange = (newQuestionIndex: number) => {
-    // Record time spent on current question
     if (quiz) {
       const currentQuestionId = quiz.questions[currentQuestion].id;
       const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
@@ -139,7 +125,6 @@ const QuizTaking: React.FC = () => {
   const handleSubmit = async () => {
     if (submitting) return;
 
-    // Record time for the last question
     if (quiz) {
       const currentQuestionId = quiz.questions[currentQuestion].id;
       const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
@@ -165,7 +150,6 @@ const QuizTaking: React.FC = () => {
         return;
       }
 
-      console.log('Submitting quiz with answers:', answers);
       const response = await axios.post(
         `http://localhost:8001/api/quizzes/${quizId}/submit`,
         { 
@@ -181,17 +165,9 @@ const QuizTaking: React.FC = () => {
         }
       );
       
-      console.log('Quiz submission response:', response.data);
       navigate(`/results/${quizId}`, { state: { results: response.data } });
     } catch (err: any) {
       console.error('Error submitting quiz:', err);
-      console.error('Error details:', {
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        headers: err.response?.headers
-      });
-      
       if (err.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('studentId');
@@ -201,7 +177,6 @@ const QuizTaking: React.FC = () => {
       } else {
         setError('Failed to submit quiz. Please try again.');
       }
-    } finally {
       setSubmitting(false);
     }
   };
@@ -214,117 +189,127 @@ const QuizTaking: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Loader size="md" content="Loading quiz..." />
+      <div className="quiz-taking-container">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+          <p>Loading quiz...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: '20px' }}>
-        <Message type="error" header="Error">
-          {error}
-        </Message>
+      <div className="quiz-taking-container">
+        <div className="error-message">
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={() => navigate('/quizzes')}>Return to Quizzes</button>
+        </div>
       </div>
     );
   }
 
   if (!quiz) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <Message type="warning" header="Notice">
-          Quiz not found
-        </Message>
-      </div>
-    );
+    return null;
   }
 
-  const question = quiz.questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / quiz.questions.length) * 100;
+  const currentQ = quiz.questions[currentQuestion];
+  const progress = (Object.keys(answers).length / quiz.questions.length) * 100;
+  const allQuestionsAnswered = Object.keys(answers).length === quiz.questions.length;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <Panel shaded>
-        <Stack justifyContent="space-between" alignItems="center" style={{ marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>{quiz.title}</h2>
-          <div style={{ fontSize: '18px', fontWeight: 'medium' }}>
-            Time Left: {formatTime(timeLeft)}
+    <div className="quiz-taking-container">
+      <div className="quiz-header">
+        <h1>{quiz.title}</h1>
+        <div className="quiz-info">
+          <div className="timer">
+            <span className="timer-icon">⏱️</span>
+            <span className={timeLeft <= 60 ? 'time-warning' : ''}>
+              {formatTime(timeLeft)}
+            </span>
           </div>
-        </Stack>
+          <div className="progress-bar">
+            <div 
+              className="progress-fill"
+              style={{ width: `${progress}%` }}
+            />
+            <span className="progress-text">
+              {Object.keys(answers).length} / {quiz.questions.length} Questions
+            </span>
+          </div>
+        </div>
+      </div>
 
-        <Stack spacing={10} style={{ marginBottom: '20px' }}>
-          <div style={{ flex: 1 }}>
-            <Progress.Line percent={progress} status="active" />
-          </div>
-          <div style={{ minWidth: '100px', textAlign: 'right' }}>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentQuestion}
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.3 }}
+          className="question-container"
+        >
+          <div className="question-number">
             Question {currentQuestion + 1} of {quiz.questions.length}
           </div>
-        </Stack>
+          <h2 className="question-text">{currentQ.text}</h2>
+          <div className="options-container">
+            {currentQ.options.map((option, index) => (
+              <motion.button
+                key={index}
+                className={`option-button ${answers[currentQ.id] === option ? 'selected' : ''}`}
+                onClick={() => handleAnswerSelect(currentQ.id, option)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {option}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      </AnimatePresence>
 
-        <Panel bordered style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '20px' }}>{question.text}</h3>
-          <RadioGroup
-            value={answers[question.id]}
-            onChange={(value) => handleAnswerSelect(question.id, value as string)}
-            style={{ width: '100%' }}
+      <div className="navigation-buttons">
+        <button
+          className="nav-button"
+          onClick={() => handleQuestionChange(currentQuestion - 1)}
+          disabled={currentQuestion === 0}
+        >
+          Previous
+        </button>
+        {currentQuestion < quiz.questions.length - 1 ? (
+          <button
+            className="nav-button"
+            onClick={() => handleQuestionChange(currentQuestion + 1)}
           >
-            <Stack direction="column" spacing={15} style={{ width: '100%' }}>
-              {question.options.map((option, index) => (
-                <Radio 
-                  key={index} 
-                  value={option}
-                  style={{ 
-                    padding: '12px 15px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    width: '100%',
-                    height: '50px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    backgroundColor: '#ffffff',
-                    transition: 'background-color 0.2s ease',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {option}
-                </Radio>
-              ))}
-            </Stack>
-          </RadioGroup>
-        </Panel>
+            Next
+          </button>
+        ) : (
+          <button
+            className={`submit-button ${allQuestionsAnswered ? 'ready' : 'disabled'}`}
+            onClick={() => setShowConfirmation(true)}
+            disabled={!allQuestionsAnswered || submitting}
+          >
+            {submitting ? 'Submitting...' : 'Submit Quiz'}
+          </button>
+        )}
+      </div>
 
-        <Stack justifyContent="space-between" spacing={10}>
-          <Button
-            appearance="default"
-            startIcon={<ArrowLeft />}
-            onClick={() => handleQuestionChange(Math.max(0, currentQuestion - 1))}
-            disabled={currentQuestion === 0}
-          >
-            Previous
-          </Button>
-          
-          {currentQuestion < quiz.questions.length - 1 ? (
-            <Button
-              appearance="primary"
-              endIcon={<ArrowRight />}
-              onClick={() => handleQuestionChange(Math.min(quiz.questions.length - 1, currentQuestion + 1))}
-            >
-              Next
-            </Button>
-          ) : (
-            <Button
-              appearance="primary"
-              color="green"
-              startIcon={<Check />}
-              loading={submitting}
-              onClick={handleSubmit}
-            >
-              Submit Quiz
-            </Button>
-          )}
-        </Stack>
-      </Panel>
+      {showConfirmation && (
+        <div className="confirmation-modal">
+          <div className="confirmation-content">
+            <h3>Submit Quiz?</h3>
+            <p>Are you sure you want to submit your answers? This action cannot be undone.</p>
+            <div className="confirmation-buttons">
+              <button onClick={() => setShowConfirmation(false)}>Cancel</button>
+              <button onClick={handleSubmit} className="confirm-submit">
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
