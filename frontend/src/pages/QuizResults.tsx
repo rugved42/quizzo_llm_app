@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Panel, Loader, Message, Button, Progress, Stack, Radio } from 'rsuite';
+import { Panel, Loader, Message, Button, Progress, Stack, Radio, Modal, SelectPicker } from 'rsuite';
 import 'rsuite/dist/rsuite.min.css';
 
 interface Question {
@@ -31,6 +31,15 @@ const QuizResults: React.FC = () => {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('moderate');
+
+  const difficultyOptions = [
+    { label: 'Easy', value: 'easy' },
+    { label: 'Moderate', value: 'moderate' },
+    { label: 'Hard', value: 'hard' }
+  ];
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -76,6 +85,47 @@ const QuizResults: React.FC = () => {
     navigate('/quizzes');
   };
 
+  const handleRegenerateQuiz = async () => {
+    if (!quizId) {
+      setError('Quiz ID is missing. Cannot regenerate quiz.');
+      return;
+    }
+
+    setRegenerating(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Not authenticated. Please login.');
+        navigate('/login');
+        return;
+      }
+
+      const response = await axios.post(
+        `http://localhost:8001/api/quizzes/${quizId}/regenerate`,
+        { difficulty: selectedDifficulty },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
+        }
+      );
+
+      if (response.data && response.data.quiz_id) {
+        navigate(`/quiz/${response.data.quiz_id}`);
+      } else {
+        throw new Error('Failed to regenerate quiz');
+      }
+    } catch (err: any) {
+      console.error('Error regenerating quiz:', err);
+      setError(err.response?.data?.error || 'Failed to regenerate quiz. Please try again.');
+    } finally {
+      setRegenerating(false);
+      setShowRegenerateModal(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -105,9 +155,17 @@ const QuizResults: React.FC = () => {
   }
 
   const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      return `${remainingSeconds}s`;
+    }
   };
 
   return (
@@ -210,15 +268,64 @@ const QuizResults: React.FC = () => {
           >
             Back to Quizzes
           </Button>
-          <Button
-            appearance="primary"
-            color="green"
-            onClick={handleRetakeQuiz}
-          >
-            Retake Quiz
-          </Button>
+          <Stack spacing={10}>
+            <Button
+              appearance="primary"
+              color="blue"
+              onClick={() => setShowRegenerateModal(true)}
+            >
+              Regenerate Quiz
+            </Button>
+            <Button
+              appearance="primary"
+              color="green"
+              onClick={handleRetakeQuiz}
+            >
+              Retake Quiz
+            </Button>
+          </Stack>
         </Stack>
       </Panel>
+
+      <Modal
+        backdrop="static"
+        keyboard={false}
+        size="sm"
+        onClose={() => setShowRegenerateModal(false)}
+        open={showRegenerateModal}
+      >
+        <Modal.Header>
+          <Modal.Title>Regenerate Quiz</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Stack direction="column" spacing={20}>
+            <div>
+              <p>Select a new difficulty level for the quiz:</p>
+              <SelectPicker
+                data={difficultyOptions}
+                value={selectedDifficulty}
+                onChange={(value: string | null) => setSelectedDifficulty(value || 'moderate')}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </Stack>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            appearance="default"
+            onClick={() => setShowRegenerateModal(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            appearance="primary"
+            onClick={handleRegenerateQuiz}
+            loading={regenerating}
+          >
+            Regenerate
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

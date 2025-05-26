@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Request
 from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
@@ -15,6 +15,10 @@ import io
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy import inspect
+import openai
+from langchain.prompts import PromptTemplate
+from langchain.chains.llm import LLMChain
+from langchain.chat_models import ChatOpenAI
 
 # Configure logging
 logging.basicConfig(
@@ -351,6 +355,7 @@ def login():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/auth/check', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def check_auth():
     if request.method == 'OPTIONS':
         response = app.make_default_options_response()
@@ -361,40 +366,27 @@ def check_auth():
         return response
 
     try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        current_user = get_jwt_identity()
+        user = Student.query.filter_by(student_id=current_user).first()
+        
+        if not user:
             return jsonify({"isAuthenticated": False}), 401
 
-        token = auth_header.split(' ')[1]
-        try:
-            current_user = get_jwt_identity()
-            user = Student.query.filter_by(student_id=current_user).first()
-            
-            if not user:
-                return jsonify({"isAuthenticated": False}), 401
-
-            response = jsonify({
-                "isAuthenticated": True,
-                "student_id": user.student_id,
-                "name": user.name,
-                "email": user.email
-            })
-            
-            response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            
-            return response, 200
-
-        except Exception as e:
-            logger.error(f"Token validation error: {str(e)}")
-            return jsonify({"isAuthenticated": False}), 401
+        response = jsonify({
+            "isAuthenticated": True,
+            "student_id": user.student_id,
+            "name": user.name,
+            "email": user.email
+        })
+        
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        return response, 200
 
     except Exception as e:
-        logger.error(f"Auth check error: {str(e)}")
-        error_response = jsonify({"error": "Internal server error"})
-        error_response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
-        error_response.headers['Access-Control-Allow-Credentials'] = 'true'
-        return error_response, 500
+        logger.error(f"Token validation error: {str(e)}")
+        return jsonify({"isAuthenticated": False}), 401
 
 @app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
 def logout():
@@ -653,49 +645,174 @@ def get_textbooks():
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response, 500
 
-@app.route('/textbooks/<int:textbook_id>/create-quiz', methods=['POST'])
+@app.route('/api/textbooks/<int:textbook_id>/create-quiz', methods=['POST', 'OPTIONS'])
+@jwt_required()
 def create_textbook_quiz(textbook_id):
+    logger.info("="*50)
+    logger.info(f"CREATE QUIZ REQUEST RECEIVED for textbook_id: {textbook_id}")
+    logger.info(f"Request Method: {request.method}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
+    
+    if request.method == 'OPTIONS':
+        logger.info("Handling OPTIONS request")
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
     try:
+        # Get the student ID from the JWT token
+        student_id = get_jwt_identity()
+        logger.info(f"Student ID from token: {student_id}")
+
+        # Get request data
+        data = request.get_json()
+        logger.info(f"Received request data: {data}")
+        
+        number_of_questions = int(data.get('numberOfQuestions', 10))
+        difficulty = data.get('difficulty', 'moderate')
+        logger.info(f"Requested parameters - Questions: {number_of_questions}, Difficulty: {difficulty}")
+
+        # Get the textbook
         textbook = Textbook.query.get_or_404(textbook_id)
-        
-        # Get all questions from all chapters
-        all_questions = []
-        for chapter in textbook.chapters:
-            all_questions.extend(chapter.questions)
-        
-        if not all_questions:
-            return jsonify({"error": "No questions found for this textbook"}), 404
-        
-        # Create a new quiz
-        quiz = Quiz(
-            title=f"Quiz for {textbook.title}",
-            chapter_id=textbook.chapters[0].id,  # Use first chapter as reference
-            time_limit=30  # Default 30 minutes
+        logger.info(f"Found textbook: {textbook.title}")
+
+        # Verify the textbook belongs to the student
+        if textbook.student_id != student_id:
+            logger.error(f"Unauthorized access attempt. Student: {student_id}, Textbook owner: {textbook.student_id}")
+            return jsonify({"error": "Unauthorized access"}), 403
+
+        # Get existing questions to avoid duplicates
+        existing_questions = Question.query.join(Chapter).filter(Chapter.textbook_id == textbook_id).all()
+        existing_question_texts = {q.text.lower().strip() for q in existing_questions}
+        logger.info(f"Found {len(existing_questions)} existing questions to avoid")
+
+        # Map difficulty to tone
+        difficulty_map = {
+            'easy': 'easy',
+            'moderate': 'moderate',
+            'hard': 'hard'
+        }
+        tone = difficulty_map.get(difficulty.lower(), 'moderate')
+        logger.info(f"Mapped difficulty '{difficulty}' to tone '{tone}'")
+
+        # Generate new questions using MCQGenerator
+        logger.info("Generating new questions using MCQGenerator")
+        max_attempts = 3
+        attempt = 0
+        new_questions = []
+
+        # Ensure the file exists
+        if not os.path.exists(textbook.file_path):
+            logger.error(f"Textbook file not found: {textbook.file_path}")
+            return jsonify({"error": "Textbook file not found"}), 404
+
+        while attempt < max_attempts and len(new_questions) < number_of_questions:
+            try:
+                with open(textbook.file_path, 'rb') as pdf_file:
+                    result = mcq_generator.generate_mcqs(
+                        pdf_file=pdf_file,
+                        number_of_questions=number_of_questions * 2,  # Generate more questions to have a better selection
+                        subject=textbook.title.split()[0],  # Extract subject from textbook title
+                        tone=tone
+                    )
+
+                if not result or not result.get('questions'):
+                    logger.error("No questions generated")
+                    raise Exception("Failed to generate questions from PDF")
+
+                # Filter out questions that are too similar to existing ones
+                for q in result['questions']:
+                    question_text = q['question'].lower().strip()
+                    if question_text not in existing_question_texts:
+                        new_questions.append(q)
+                        existing_question_texts.add(question_text)
+                        if len(new_questions) >= number_of_questions:
+                            break
+
+            except Exception as e:
+                logger.error(f"Error generating questions on attempt {attempt + 1}: {str(e)}")
+                attempt += 1
+                continue
+
+            attempt += 1
+
+        if len(new_questions) < number_of_questions:
+            logger.warning(f"Could only generate {len(new_questions)} unique questions after {max_attempts} attempts")
+            return jsonify({"error": "Could not generate enough unique questions"}), 500
+
+        # Create a new chapter for the questions
+        chapter = Chapter(
+            title=f"{textbook.title} - {difficulty.capitalize()} Level Questions",
+            number=len(textbook.chapters) + 1,
+            textbook_id=textbook.id
         )
-        db.session.add(quiz)
+        db.session.add(chapter)
         db.session.commit()
+
+        # Create new questions
+        created_questions = []
+        for q in new_questions[:number_of_questions]:  # Only use the number of questions we need
+            question = Question(
+                text=q['question'],
+                correct_answer=q['correct_answer'],
+                options=q['options'],
+                difficulty=difficulty,
+                chapter_id=chapter.id
+            )
+            db.session.add(question)
+            created_questions.append(question)
         
-        # Add questions to quiz
-        for i, question in enumerate(all_questions):
+        db.session.commit()
+
+        # Create a new quiz
+        new_quiz = Quiz(
+            title=f"{textbook.title} - {difficulty.capitalize()} Level Assessment",
+            chapter_id=chapter.id,
+            textbook_id=textbook.id,
+            difficulty=difficulty,
+            time_limit=30  # 30 minutes per quiz
+        )
+        db.session.add(new_quiz)
+        db.session.commit()
+
+        # Add questions to the new quiz
+        for i, question in enumerate(created_questions):
             quiz_question = QuizQuestion(
-                quiz_id=quiz.id,
+                quiz_id=new_quiz.id,
                 question_id=question.id,
                 order=i + 1
             )
             db.session.add(quiz_question)
-        
+
         db.session.commit()
-        
-        return jsonify({
-            "quiz_id": quiz.id,
-            "title": quiz.title,
-            "num_questions": len(all_questions),
-            "time_limit": quiz.time_limit
-        }), 201
-        
+        logger.info(f"Successfully created new quiz with ID: {new_quiz.id}")
+
+        response = jsonify({
+            "message": "Quiz created successfully",
+            "quiz_id": new_quiz.id,
+            "title": new_quiz.title,
+            "difficulty": new_quiz.difficulty,
+            "question_count": len(created_questions)
+        })
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 201
+
     except Exception as e:
+        logger.error("="*50)
+        logger.error(f"Error creating quiz: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("="*50)
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        error_response = jsonify({"error": str(e)})
+        error_response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        error_response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return error_response, 500
 
 @app.route('/quizzes/<quiz_id>/questions', methods=['GET'])
 def get_quiz_questions(quiz_id):
@@ -1291,6 +1408,313 @@ def submit_quiz_answers(quiz_id):
         error_response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
         error_response.headers['Access-Control-Allow-Credentials'] = 'true'
         return error_response, 500
+
+@app.route('/api/quizzes/<int:quiz_id>/regenerate', methods=['POST', 'OPTIONS'])
+@jwt_required()
+def regenerate_quiz(quiz_id):
+    logger.info("="*50)
+    logger.info(f"REGENERATE QUIZ REQUEST RECEIVED for quiz_id: {quiz_id}")
+    logger.info(f"Request Method: {request.method}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
+    
+    if request.method == 'OPTIONS':
+        logger.info("Handling OPTIONS request")
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+    try:
+        # Get the student ID from the JWT token
+        student_id = get_jwt_identity()
+        logger.info(f"Student ID from token: {student_id}")
+
+        # Get request data
+        data = request.get_json()
+        new_difficulty = data.get('difficulty', 'moderate')
+        logger.info(f"New difficulty requested: {new_difficulty}")
+
+        # Get the original quiz
+        original_quiz = Quiz.query.get_or_404(quiz_id)
+        logger.info(f"Found original quiz: {original_quiz.id}")
+
+        # Get the textbook and chapter
+        textbook = Textbook.query.get(original_quiz.textbook_id)
+        chapter = Chapter.query.get(original_quiz.chapter_id)
+        
+        if not textbook or not chapter:
+            logger.error("Textbook or chapter not found")
+            return jsonify({"error": "Textbook or chapter not found"}), 404
+
+        # Map tone to difficulty level
+        difficulty_map = {
+            'easy': 'easy',
+            'moderate': 'medium',
+            'hard': 'hard'
+        }
+        difficulty = difficulty_map.get(new_difficulty.lower(), 'medium')
+        logger.info(f"Mapped difficulty '{new_difficulty}' to '{difficulty}'")
+
+        # Get existing questions to avoid duplicates
+        existing_questions = Question.query.filter_by(chapter_id=chapter.id).all()
+        existing_question_texts = {q.text.lower().strip() for q in existing_questions}
+        logger.info(f"Found {len(existing_questions)} existing questions to avoid")
+
+        # Generate new questions using MCQGenerator
+        logger.info("Generating new questions using MCQGenerator")
+        max_attempts = 3
+        attempt = 0
+        new_questions = []
+
+        while attempt < max_attempts and len(new_questions) < len(original_quiz.questions):
+            result = mcq_generator.generate_mcqs(
+                pdf_file=open(textbook.file_path, 'rb'),
+                number_of_questions=len(original_quiz.questions) * 2,  # Generate more questions to have a better selection
+                subject=chapter.title.split()[0],  # Extract subject from chapter title
+                tone=new_difficulty
+            )
+
+            if not result or not result.get('questions'):
+                logger.error("No questions generated")
+                raise Exception("Failed to generate questions from PDF")
+
+            # Filter out questions that are too similar to existing ones
+            for q in result['questions']:
+                question_text = q['question'].lower().strip()
+                if question_text not in existing_question_texts:
+                    new_questions.append(q)
+                    existing_question_texts.add(question_text)
+                    if len(new_questions) >= len(original_quiz.questions):
+                        break
+
+            attempt += 1
+
+        if len(new_questions) < len(original_quiz.questions):
+            logger.warning(f"Could only generate {len(new_questions)} unique questions after {max_attempts} attempts")
+            return jsonify({"error": "Could not generate enough unique questions"}), 500
+
+        # Create new questions
+        created_questions = []
+        for q in new_questions[:len(original_quiz.questions)]:  # Only use the number of questions we need
+            question = Question(
+                text=q['question'],
+                correct_answer=q['correct_answer'],
+                options=q['options'],
+                difficulty=difficulty,
+                chapter_id=chapter.id
+            )
+            db.session.add(question)
+            created_questions.append(question)
+        
+        db.session.commit()
+
+        # Create a new quiz
+        new_quiz = Quiz(
+            title=f"{textbook.title} - {difficulty.capitalize()} Level Assessment (Regenerated)",
+            chapter_id=chapter.id,
+            textbook_id=textbook.id,
+            difficulty=difficulty,
+            time_limit=original_quiz.time_limit
+        )
+        db.session.add(new_quiz)
+        db.session.commit()
+
+        # Add questions to the new quiz
+        for i, question in enumerate(created_questions):
+            quiz_question = QuizQuestion(
+                quiz_id=new_quiz.id,
+                question_id=question.id,
+                order=i + 1
+            )
+            db.session.add(quiz_question)
+
+        db.session.commit()
+        logger.info(f"Successfully created new quiz with ID: {new_quiz.id}")
+
+        response = jsonify({
+            "message": "Quiz regenerated successfully",
+            "quiz_id": new_quiz.id,
+            "title": new_quiz.title,
+            "difficulty": new_quiz.difficulty,
+            "question_count": len(created_questions)
+        })
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 201
+
+    except Exception as e:
+        logger.error("="*50)
+        logger.error(f"Error regenerating quiz: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("="*50)
+        db.session.rollback()
+        error_response = jsonify({"error": "Internal server error"})
+        error_response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        error_response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return error_response, 500
+
+@app.route('/api/generate-live-quiz', methods=['POST', 'OPTIONS'])
+def generate_live_quiz():
+    if request.method == 'OPTIONS':
+        return '', 204, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Credentials': 'true'
+        }
+    
+    try:
+        data = request.get_json()
+        topic = data.get('topic')
+        difficulty = data.get('difficulty', 'medium')
+        used_questions = data.get('used_questions', [])
+        
+        if not topic:
+            return jsonify({'error': 'Topic is required'}), 400, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Allow-Credentials': 'true'
+            }
+
+        # Create a prompt that avoids used questions
+        prompt = PromptTemplate(
+            input_variables=["topic", "difficulty", "used_questions"],
+            template="""Generate a single multiple-choice question about {topic} at {difficulty} difficulty level.
+            The question should be unique and not similar to any of these previously used questions: {used_questions}
+            
+            Format the response as a JSON object with the following structure:
+            {{
+                "question": "The question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correct_answer": "The correct option"
+            }}
+            
+            Make sure the question is challenging but fair, and the options are well-distributed.
+            The correct answer should be one of the options exactly as written.
+            """
+        )
+
+        # Create the chain
+        chain = LLMChain(
+            llm=ChatOpenAI(
+                model_name="gpt-3.5-turbo",
+                temperature=0.7
+            ),
+            prompt=prompt
+        )
+
+        # Generate the question
+        response = chain.run(
+            topic=topic,
+            difficulty=difficulty,
+            used_questions=used_questions
+        )
+
+        # Parse the response
+        try:
+            question_data = json.loads(response)
+            return jsonify({
+                'questions': [question_data]
+            }), 200, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Allow-Credentials': 'true'
+            }
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Failed to parse question data'}), 500, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Allow-Credentials': 'true'
+            }
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Credentials': 'true'
+        }
+
+@app.route('/api/students/<string:student_id>/recent-activity', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def get_recent_activity(student_id):
+    logger.info("="*50)
+    logger.info(f"GET RECENT ACTIVITY REQUEST RECEIVED for student_id: {student_id}")
+    logger.info(f"Request Method: {request.method}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
+    
+    if request.method == 'OPTIONS':
+        logger.info("Handling OPTIONS request")
+        response = jsonify({})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 200
+
+    try:
+        # Get the current user from JWT token
+        current_user = get_jwt_identity()
+        logger.info(f"Current user from JWT: {current_user}")
+        
+        # Verify the requesting user matches the student_id
+        if current_user != student_id:
+            logger.error(f"Unauthorized access attempt. Current user: {current_user}, Requested student: {student_id}")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Get student to verify they exist
+        student = Student.query.filter_by(student_id=student_id).first()
+        if not student:
+            logger.error(f"Student not found with ID: {student_id}")
+            return jsonify({'error': 'Student not found'}), 404
+            
+        logger.info(f"Found student: {student.name} (ID: {student.student_id})")
+        
+        # Get recent quiz results
+        results = QuizResult.query.filter_by(student_id=student_id)\
+            .order_by(QuizResult.submitted_at.desc())\
+            .limit(10)\
+            .all()
+            
+        logger.info(f"Found {len(results)} recent quiz results")
+        
+        # Format the response
+        activity_list = [{
+            'id': r.id,
+            'quiz_title': Quiz.query.get(r.quiz_id).title if Quiz.query.get(r.quiz_id) else 'Unknown Quiz',
+            'score': r.score,
+            'completed_at': r.submitted_at.isoformat() if r.submitted_at else None
+        } for r in results]
+        
+        logger.info(f"Prepared response data: {activity_list}")
+        
+        response = jsonify(activity_list)
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        logger.info("Successfully returning recent activity")
+        logger.info("="*50)
+        return response, 200
+        
+    except Exception as e:
+        logger.error("="*50)
+        logger.error(f"Error in get_recent_activity: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("="*50)
+        
+        response = jsonify({'error': str(e)})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 500
 
 # Add cleanup on startup
 with app.app_context():

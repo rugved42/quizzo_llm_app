@@ -29,6 +29,8 @@ const QuizTaking: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchQuiz();
@@ -39,6 +41,11 @@ const QuizTaking: React.FC = () => {
       setTimeLeft(quiz.time_limit * 60);
     }
   }, [quiz]);
+
+  useEffect(() => {
+    // Reset question start time when question changes
+    setQuestionStartTime(Date.now());
+  }, [currentQuestion]);
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -116,8 +123,31 @@ const QuizTaking: React.FC = () => {
     }));
   };
 
+  const handleQuestionChange = (newQuestionIndex: number) => {
+    // Record time spent on current question
+    if (quiz) {
+      const currentQuestionId = quiz.questions[currentQuestion].id;
+      const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+      setQuestionTimes(prev => ({
+        ...prev,
+        [currentQuestionId]: timeSpent
+      }));
+    }
+    setCurrentQuestion(newQuestionIndex);
+  };
+
   const handleSubmit = async () => {
     if (submitting) return;
+
+    // Record time for the last question
+    if (quiz) {
+      const currentQuestionId = quiz.questions[currentQuestion].id;
+      const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+      setQuestionTimes(prev => ({
+        ...prev,
+        [currentQuestionId]: timeSpent
+      }));
+    }
 
     setSubmitting(true);
     try {
@@ -140,7 +170,7 @@ const QuizTaking: React.FC = () => {
         `http://localhost:8001/api/quizzes/${quizId}/submit`,
         { 
           answers,
-          question_times: {} // Add time tracking if needed
+          question_times: questionTimes
         },
         {
           headers: {
@@ -268,7 +298,7 @@ const QuizTaking: React.FC = () => {
           <Button
             appearance="default"
             startIcon={<ArrowLeft />}
-            onClick={() => setCurrentQuestion((prev) => Math.max(0, prev - 1))}
+            onClick={() => handleQuestionChange(Math.max(0, currentQuestion - 1))}
             disabled={currentQuestion === 0}
           >
             Previous
@@ -278,7 +308,7 @@ const QuizTaking: React.FC = () => {
             <Button
               appearance="primary"
               endIcon={<ArrowRight />}
-              onClick={() => setCurrentQuestion((prev) => Math.min(quiz.questions.length - 1, prev + 1))}
+              onClick={() => handleQuestionChange(Math.min(quiz.questions.length - 1, currentQuestion + 1))}
             >
               Next
             </Button>

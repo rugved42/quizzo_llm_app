@@ -84,7 +84,13 @@ class MCQGenerator:
     def _setup_chains(self):
         TEMPLATE = """
         Text:{text}
-        You are an expert MCQ maker. Given the above text, it is your job to create a quiz of {number} multiple choice questions for {subject} students in {tone} tone. 
+        You are an expert MCQ maker. Given the above text, it is your job to create a quiz of {number} multiple choice questions for {subject} students.
+        
+        The questions should be at a {tone} difficulty level:
+        - For 'easy' difficulty: Focus on basic concepts, straightforward questions, and clear-cut answers
+        - For 'moderate' difficulty: Include some analytical thinking and application of concepts
+        - For 'hard' difficulty: Include complex scenarios, higher-order thinking, and nuanced answers
+        
         Make sure the questions are not repeated and check all the questions to be conforming the text as well.
         Make sure to format your response like RESPONSE_JSON below and use it as a guide. 
         Ensure to make {number} MCQs
@@ -96,10 +102,14 @@ class MCQGenerator:
         """
 
         TEMPLATE2 = """
-        You are an expert english grammarian and writer. Given a Multiple Choice Quiz for {subject} students. 
-        You need to evaluate the complexity of the question and give a complete analysis of the quiz. Only use at max 50 words for complexity analysis. 
-        If the quiz is not at par with the cognitive and analytical abilities of the students, 
-        update the quiz questions which need to be changed and change the tone such that it perfectly fits the student abilities.
+        You are an expert english grammarian and writer. Given a Multiple Choice Quiz for {subject} students at {tone} difficulty level.
+        You need to evaluate the complexity of the questions and ensure they match the requested difficulty level:
+        - For 'easy' difficulty: Questions should test basic understanding and recall
+        - For 'moderate' difficulty: Questions should require some analysis and application
+        - For 'hard' difficulty: Questions should challenge critical thinking and complex understanding
+        
+        Give a complete analysis of the quiz. Only use at max 50 words for complexity analysis.
+        If the quiz is not at par with the requested difficulty level, suggest specific improvements.
         Quiz_MCQs:
         {quiz}
 
@@ -112,7 +122,7 @@ class MCQGenerator:
         )
 
         self.quiz_evaluation_prompt = PromptTemplate(
-            input_variables=["subject", "quiz"],
+            input_variables=["subject", "tone", "quiz"],
             template=TEMPLATE2
         )
 

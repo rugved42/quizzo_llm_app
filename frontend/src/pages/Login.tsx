@@ -1,23 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Form, Button, Panel, Container, Header, Content, Footer, Message } from 'rsuite';
+import EyeCloseIcon from '@rsuite/icons/EyeClose';
+import EyeRoundIcon from '@rsuite/icons/EyeRound';
 import axios from 'axios';
+import './Login.css';
 
-const Login: React.FC = () => {
+interface LoginProps {
+  onAuthSuccess: () => void;
+}
+
+const Login: React.FC<LoginProps> = ({ onAuthSuccess }) => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setLoading(true);
     setError(null);
 
     try {
       const response = await axios.post(
         'http://localhost:8001/api/auth/login',
-        { email, password },
+        formData,
         { 
           withCredentials: true,
           headers: {
@@ -27,11 +37,11 @@ const Login: React.FC = () => {
       );
 
       if (response.data.access_token) {
-        // Store the token and user info
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('studentId', response.data.student_id);
         localStorage.setItem('userName', response.data.name);
-        navigate('/quizzes');
+        onAuthSuccess();
+        navigate('/dashboard', { replace: true });
       } else {
         setError('Invalid response from server');
       }
@@ -48,85 +58,78 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
-            create a new account
-          </Link>
-        </p>
-      </div>
+    <Container className="login-container">
+      <Header className="login-header">
+        <h2>Welcome Back to Quizzo</h2>
+        <p>Sign in to continue your learning journey</p>
+      </Header>
+      <Content className="login-content">
+        <Panel bordered className="login-panel">
+          <Form fluid onSubmit={handleSubmit}>
+            <Form.Group>
+              <Form.ControlLabel>Email address</Form.ControlLabel>
+              <Form.Control
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={(value) => setFormData({ ...formData, email: value })}
+                placeholder="Enter your email"
+                autoComplete="email"
+                required
+              />
+            </Form.Group>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
+            <Form.Group>
+              <Form.ControlLabel>Password</Form.ControlLabel>
+              <div style={{ position: 'relative' }}>
+                <Form.Control
                   name="password"
-                  type="password"
+                  type={visible ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(value) => setFormData({ ...formData, password: value })}
+                  placeholder="Enter your password"
                   autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+                <Button
+                  className="password-toggle"
+                  appearance="subtle"
+                  onClick={() => setVisible(!visible)}
+                >
+                  {visible ? <EyeCloseIcon /> : <EyeRoundIcon />}
+                </Button>
               </div>
-            </div>
+            </Form.Group>
 
             {error && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                  </div>
-                </div>
-              </div>
+              <Message type="error" className="error-message">
+                {error}
+              </Message>
             )}
 
-            <div>
-              <button
+            <Form.Group>
+              <Button
+                appearance="primary"
                 type="submit"
-                disabled={loading}
-                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                  loading
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-                }`}
+                loading={loading}
+                block
+                className="login-button"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+              </Button>
+            </Form.Group>
+          </Form>
+        </Panel>
+      </Content>
+      <Footer className="login-footer">
+        <p>
+          Don't have an account?{' '}
+          <Link to="/register" className="register-link">
+            Create one now
+          </Link>
+        </p>
+      </Footer>
+    </Container>
   );
 };
 

@@ -22,7 +22,8 @@
     "baseUrl": "src",
     "paths": {
       "*": ["*"]
-    }
+    },
+    "types": ["node", "react", "react-dom", "framer-motion"]
   },
   "include": [
     "src"
