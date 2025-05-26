@@ -45,8 +45,10 @@ CORS(app, resources={
     }
 })
 
+load_dotenv()
+
 # Configure database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/quizzes.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 db.init_app(app)
@@ -63,7 +65,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 pdf_service = PDFService()
 mcq_generator = MCQGenerator()
 
-load_dotenv()
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'your-secret-key')

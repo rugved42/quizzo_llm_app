@@ -1,10 +1,6 @@
 ﻿Requirements Document: Quiz Maker App 
 
 
-Sanat Batra, Rugved Hattekar
-________________
-
-
 1. Overview
 The Quiz Maker App enables educators to upload PDF textbooks and automatically generate quizzes using AI. It allows users to organize questions by chapter, create and take quizzes, and analyze student performance with visual insights.
 ________________

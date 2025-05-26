@@ -1,0 +1,235 @@
+# Quiz Maker - Requirements Document
+
+## 1. Project Overview
+Quiz Maker is an interactive learning platform that enables students to create and take quizzes from their textbooks using AI-powered question generation.
+
+## 2. Core Features
+
+### 2.1 User Authentication
+- User registration with email and password
+- Secure login system with JWT authentication
+- Password hashing and security
+- Session management
+- Protected routes and API endpoints
+
+### 2.2 Textbook Management
+- PDF textbook upload functionality
+- Automatic chapter extraction from PDFs
+- Textbook organization and categorization
+- Support for multiple textbooks per user
+- Textbook metadata storage (title, author, subject)
+
+### 2.3 Question Generation
+- AI-powered question generation from textbook content
+- Multiple choice question format
+- Support for different question types:
+  - Multiple choice
+  - True/False
+  - Short answer
+- Question difficulty levels
+- Question validation and quality checks
+
+### 2.4 Quiz Creation
+- Create quizzes from generated questions
+- Customize quiz parameters:
+  - Number of questions
+  - Time limit
+  - Difficulty level
+  - Chapter selection
+- Quiz preview functionality
+- Quiz sharing capabilities
+
+### 2.5 Quiz Taking
+- Interactive quiz interface
+- Timer functionality
+- Question navigation
+- Answer submission
+- Progress tracking
+- Auto-submission when time expires
+
+### 2.6 Live Quiz Sessions
+- Real-time quiz sessions
+- Multiple student participation
+- Live progress tracking
+- Instant feedback
+- Session management
+- Results synchronization
+
+### 2.7 Analytics and Reporting
+- Individual performance tracking
+- Quiz result analysis
+- Time spent per question
+- Correct/incorrect answer analysis
+- Progress visualization
+- Performance trends
+
+## 3. Technical Requirements
+
+### 3.1 Backend Requirements
+- Python 3.8+
+- Flask framework
+- SQLAlchemy ORM
+- SQLite database
+- JWT authentication
+- OpenAI API integration
+- PDF processing capabilities
+- RESTful API endpoints
+- CORS support
+- Error handling and logging
+
+### 3.2 Frontend Requirements
+- React with TypeScript
+- React Router for navigation
+- RSuite UI components
+- Responsive design
+- State management
+- API integration
+- Form validation
+- Error handling
+- Loading states
+
+### 3.3 Database Schema
+- Students table
+  - student_id (Primary Key)
+  - name
+  - email
+  - password_hash
+  - created_at
+
+- Textbooks table
+  - id (Primary Key)
+  - student_id (Foreign Key)
+  - title
+  - author
+  - subject
+  - file_path
+  - created_at
+
+- Chapters table
+  - id (Primary Key)
+  - textbook_id (Foreign Key)
+  - title
+  - content
+  - order
+
+- Questions table
+  - id (Primary Key)
+  - chapter_id (Foreign Key)
+  - question_text
+  - options
+  - correct_answer
+  - difficulty_level
+
+- Quizzes table
+  - id (Primary Key)
+  - student_id (Foreign Key)
+  - title
+  - time_limit
+  - created_at
+
+- QuizResults table
+  - id (Primary Key)
+  - quiz_id (Foreign Key)
+  - student_id (Foreign Key)
+  - score
+  - time_taken
+  - answers
+  - submitted_at
+
+### 3.4 API Endpoints
+
+#### Authentication
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/logout
+- GET /api/auth/check
+
+#### Textbook Management
+- POST /api/upload
+- GET /api/textbooks
+- GET /api/textbooks/{id}
+
+#### Quiz Management
+- POST /api/textbooks/{id}/create-quiz
+- GET /api/quizzes
+- GET /api/quizzes/{id}
+- POST /api/quizzes/{id}/submit
+- POST /api/quizzes/{id}/regenerate
+
+#### Live Quiz
+- POST /api/generate-live-quiz
+- GET /api/live-quiz/{id}
+
+#### Dashboard
+- GET /api/dashboard/stats
+- GET /api/dashboard/topics
+- GET /api/students/{id}/recent-activity
+
+## 4. Non-Functional Requirements
+
+### 4.1 Performance
+- Page load time < 3 seconds
+- API response time < 1 second
+- Support for concurrent users
+- Efficient database queries
+- Optimized file uploads
+
+### 4.2 Security
+- Secure password storage
+- JWT token encryption
+- Input validation
+- XSS protection
+- CSRF protection
+- Rate limiting
+- File upload validation
+
+### 4.3 Usability
+- Intuitive user interface
+- Responsive design
+- Clear error messages
+- Loading indicators
+- Progress feedback
+- Mobile-friendly layout
+
+### 4.4 Reliability
+- Error handling
+- Data validation
+- Backup systems
+- Logging and monitoring
+- Graceful degradation
+
+## 5. Development Guidelines
+
+### 5.1 Code Standards
+- PEP 8 for Python
+- ESLint for TypeScript
+- Consistent naming conventions
+- Code documentation
+- Unit testing
+- Error handling
+
+### 5.2 Version Control
+- Git workflow
+- Branch naming conventions
+- Commit message format
+- Code review process
+- Pull request template
+
+### 5.3 Deployment
+- Environment configuration
+- Database migrations
+- Backup procedures
+- Monitoring setup
+- Error tracking
+
+## 6. Future Enhancements
+- Question bank management
+- Advanced analytics
+- Social features
+- Mobile application
+- Offline support
+- Integration with LMS
+- Custom question creation
+- Performance optimization
+- Additional question types
+- Export/import functionality 

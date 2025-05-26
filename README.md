@@ -1,108 +1,150 @@
-# Quiz Maker
+# Quizzo - Interactive Learning Platform
 
-A web application that generates quizzes from PDF textbooks, allows students to take timed quizzes, and provides detailed analytics on quiz performance.
+Quizzo is a modern web application that helps students create and take quizzes from their textbooks. It uses AI to generate questions and provides an interactive learning experience.
 
 ## Features
 
-- Upload PDF textbooks and automatically generate quiz questions
-- Organize questions by chapters
-- Create quizzes from chapter questions
-- Take timed quizzes with a user-friendly interface
-- Track time spent on each question
-- View detailed quiz results with correct/incorrect answers
-- Analyze time spent on questions with charts
-- Store student information and quiz results in a database
+- 📚 Upload and process textbooks
+- 🤖 AI-powered question generation
+- 📝 Create and take quizzes
+- 📊 Track learning progress
+- 👥 Live quiz sessions
+- 🔒 Secure authentication
 
-## Tech Stack
+## Prerequisites
 
-### Backend
 - Python 3.8+
-- Flask
-- SQLAlchemy
-- PostgreSQL
-- PyPDF2 for PDF processing
-- OpenAI API for question generation
+- Node.js 16+
+- SQLite3
+- OpenAI API key
 
-### Frontend
-- React with TypeScript
-- React Router for navigation
-- Axios for API calls
-- Chart.js for analytics
-- Tailwind CSS for styling
+## Setup Instructions
 
-## Setup
+### 1. Clone the Repository
 
-### Backend Setup
+```bash
+git clone <repository-url>
+cd quizzo
+```
 
-1. Create a virtual environment:
+### 2. Backend Setup
+
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
+
+2. Create a virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install dependencies:
+3. Install dependencies:
 ```bash
-cd backend
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
+4. Create a `.env` file in the backend directory with the following content:
+```env
+DATABASE_URL=sqlite:///instance/quizzes.db
+JWT_SECRET_KEY=your-secret-key-here
+OPENAI_API_KEY=your-openai-api-key
 ```
 
-4. Initialize the database:
+5. Initialize the database:
 ```bash
-flask db upgrade
+python init_db.py
 ```
 
-5. Start the server:
+6. Start the backend server:
 ```bash
-flask run --port 8001
+python main.py
 ```
 
-### Frontend Setup
+The backend server will run on `http://localhost:8001`
 
-1. Install dependencies:
+### 3. Frontend Setup
+
+1. Navigate to the frontend directory:
 ```bash
 cd frontend
+```
+
+2. Install dependencies:
+```bash
 npm install
 ```
 
-2. Start the development server:
+3. Start the development server:
 ```bash
 npm start
 ```
 
-## API Endpoints
+The frontend will run on `http://localhost:3000`
 
-### PDF Management
-- `POST /api/pdf/upload` - Upload a PDF textbook
-- `GET /api/pdf/textbooks` - List all textbooks
-- `GET /api/pdf/textbooks/{id}/chapters` - Get chapters for a textbook
+## Database Setup
 
-### Quiz Management
-- `POST /api/quiz/create` - Create a new quiz
-- `GET /api/quiz/{id}` - Get quiz details
-- `POST /api/quiz/submit` - Submit quiz answers
-- `GET /api/quiz/results/{id}` - Get quiz results
+The application uses SQLite as its database. The database file (`quizzes.db`) will be created automatically when you run `init_db.py`. The database includes the following tables:
 
-### User Management
-- `POST /api/user/register` - Register a new student
-- `GET /api/user/{id}` - Get student details
-- `GET /api/user/results/{id}` - Get student's quiz results
+- Students
+- Textbooks
+- Chapters
+- Questions
+- Quizzes
+- QuizResults
+
+To reset the database (if needed):
+```bash
+python reset_db.py
+```
 
 ## Environment Variables
 
 ### Backend (.env)
+
+- `DATABASE_URL`: SQLite database URL (default: `sqlite:///instance/quizzes.db`)
+  - Note: The database file will be created in the `instance` directory
+  - Format: `sqlite:///instance/quizzes.db`
+- `JWT_SECRET_KEY`: Secret key for JWT token generation
+- `OPENAI_API_KEY`: Your OpenAI API key for question generation
+
+### Frontend (.env)
+
+- `REACT_APP_API_URL`: Backend API URL (default: `http://localhost:8001`)
+
+## Running the Application
+
+1. Start the backend server:
+```bash
+cd backend
+python main.py
 ```
-FLASK_APP=app
-FLASK_ENV=development
-DATABASE_URL=postgresql://localhost/quiz_maker
-SECRET_KEY=your-secret-key
-OPENAI_API_KEY=your-openai-api-key
+
+2. In a new terminal, start the frontend:
+```bash
+cd frontend
+npm start
 ```
+
+3. Open your browser and navigate to `http://localhost:3000`
+
+## Development
+
+- Backend API documentation is available at `http://localhost:8001/api/docs`
+- Frontend code is in the `frontend/src` directory
+- Backend code is in the `backend` directory
+
+## Troubleshooting
+
+1. If you encounter database issues:
+   - Run `python check_db.py` to verify database integrity
+   - Use `python reset_db.py` to reset the database (warning: this will delete all data)
+
+2. If the frontend can't connect to the backend:
+   - Ensure both servers are running
+   - Check that the ports (3000 and 8001) are not in use
+   - Verify the API URL in the frontend environment variables
 
 ## Contributing
 
@@ -114,4 +156,4 @@ OPENAI_API_KEY=your-openai-api-key
 
 ## License
 
-MIT 
+This project is licensed under the MIT License - see the LICENSE file for details. 
